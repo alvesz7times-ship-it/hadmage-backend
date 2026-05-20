@@ -1311,6 +1311,61 @@
   /* ── Garantia: nenhum elemento ultrapassa a largura da tela ── */
   img, video, iframe, table { max-width: 100%; }
   * { -webkit-tap-highlight-color: transparent; }
+
+  /* ══════════════════════════════════════════════
+     MOBILE CPF + FOOTER FIXES
+  ══════════════════════════════════════════════ */
+
+  /* CPF: Consultar + Limpar lado a lado, Debug embaixo menor */
+  @media (max-width: 640px) {
+    .cpf-controls {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 8px;
+    }
+    .cpf-controls .btn:first-child { grid-column: 1; }
+    .cpf-controls .btn:nth-child(2) { grid-column: 2; }
+    .cpf-controls .cpf-debug-btn {
+      grid-column: 1 / -1;
+      width: 100% !important;
+      justify-content: center;
+      font-size: 12px;
+      padding: 9px 16px;
+      opacity: .45 !important;
+    }
+  }
+
+  /* CPF: badge de validação abaixo do input em mobile */
+  @media (max-width: 480px) {
+    .cpf-input-row { flex-direction: column !important; align-items: stretch !important; }
+    .cpf-input-row > div:first-child { width: 100%; }
+    #cpfValidBadge { align-self: flex-start !important; }
+  }
+
+  /* CPF card: botão "Nova consulta" não ultrapassa */
+  @media (max-width: 480px) {
+    .cpf-card-header { flex-wrap: wrap; gap: 10px; }
+    .cpf-card-header button { font-size: 9px; padding: 5px 10px; }
+    #cpfNome { font-size: 16px; }
+  }
+
+  /* Dev footer: layout limpo, sem quebra estranha */
+  .dev-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 16px;
+    padding-bottom: 8px;
+  }
+  @media (max-width: 480px) {
+    .dev-footer { font-size: 10px; gap: 4px 8px; }
+    .dev-name { font-size: 11px; }
+  }
 </style>
 </head>
 <body>
@@ -1970,10 +2025,10 @@
       </div>
       <!-- ÚNICO -->
       <div id="cpfSingleBlock">
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <div style="position:relative;flex:1;min-width:200px">
+        <div class="cpf-input-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div style="position:relative;flex:1;min-width:0">
             <input id="cpfInput" type="text" maxlength="14" placeholder="000.000.000-00" oninput="cpfMaskInput(this)"
-              style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:22px;padding:14px 44px 14px 18px;outline:none;letter-spacing:.14em;transition:border-color .2s,box-shadow .2s"
+              style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:clamp(16px,4.5vw,22px);padding:14px 44px 14px 18px;outline:none;letter-spacing:.1em;transition:border-color .2s,box-shadow .2s"
               onfocus="this.style.borderColor='var(--cyan-dim)';this.style.boxShadow='0 0 0 3px var(--cyan-glow)'"
               onblur="this.style.borderColor='var(--border)';this.style.boxShadow='none'"/>
             <button id="cpfClearBtn" onclick="cpfClearSingle()" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:4px">×</button>
@@ -1989,7 +2044,7 @@
           <span class="counter" id="cpfBatchCounter">0 CPFs</span>
         </div>
       </div>
-      <div class="controls" style="margin-top:16px">
+      <div class="controls cpf-controls" style="margin-top:16px">
         <button class="btn btn-primary" id="cpfSearchBtn" onclick="cpfSearch()" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
           Consultar
@@ -1998,7 +2053,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
           Limpar
         </button>
-        <button class="btn btn-secondary" id="cpfDebugBtn" onclick="cpfToggleDebug(this)" style="opacity:.5">
+        <button class="btn btn-secondary cpf-debug-btn" id="cpfDebugBtn" onclick="cpfToggleDebug(this)" style="opacity:.5">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
           Debug
         </button>
@@ -5322,6 +5377,6 @@ function cpfCopiarLote() {
   inp.addEventListener('input', () => {});  /* cpfMaskInput já trata via oninput */
 })();
 
-</script>-e 
+</script>
 </body>
 </html>
