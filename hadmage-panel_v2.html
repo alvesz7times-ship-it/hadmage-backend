@@ -3646,18 +3646,37 @@ async function consultarBase() {
     await Promise.all(lote.map(async item => {
       /* 1ª tentativa: API consultas.cc */
       try {
-        const res  = await fetch(BASE_API + encodeURIComponent(item.raw), { signal: AbortSignal.timeout(8000) });
+        const res = await fetch(BASE_API + encodeURIComponent(item.raw), {
+          signal: AbortSignal.timeout(10000),
+          headers: { 'Accept': 'application/json' }
+        });
         if (res.ok) {
-          const data = await res.json();
-          /* API retorna objeto ou array — normaliza */
-          const obj  = Array.isArray(data) ? data[0] : data;
-          if (obj && (obj.operadora || obj.carrier || obj.operator || obj.nome || obj.empresa)) {
+          const text = await res.text();
+          /* Rejeita respostas de erro em texto puro */
+          if (!text || text.toLowerCase().includes('not in allowlist') || text.toLowerCase().includes('error') || text.trim().startsWith('<')) {
+            throw new Error('invalid_response');
+          }
+          let data;
+          try { data = JSON.parse(text); } catch { throw new Error('not_json'); }
+
+          /* Normaliza: aceita objeto, array, ou wrapper {data: [...]} */
+          let obj = null;
+          if (Array.isArray(data))               obj = data[0] ?? null;
+          else if (data && typeof data === 'object') {
+            /* wrapper com chave data/result/results */
+            const wrap = data.data ?? data.result ?? data.results ?? null;
+            obj = Array.isArray(wrap) ? (wrap[0] ?? null) : (wrap ?? data);
+          }
+
+          /* Considera encontrado se o objeto tiver pelo menos 1 chave com valor */
+          if (obj && typeof obj === 'object' && Object.keys(obj).length > 0
+              && !obj.error && !obj.erro && !obj.message?.toLowerCase().includes('not found')) {
             item.api    = obj;
             item.status = 'found';
             return;
           }
         }
-      } catch (_) { /* ignora erros de rede */ }
+      } catch (_) { /* ignora erros — cai no fallback */ }
 
       /* 2ª tentativa: base local (Datora) */
       if (userRows.length > 0) {
@@ -3720,30 +3739,37 @@ function _baseInfoFromObj(obj) {
   if (!obj) return '—';
   const keys = Object.keys(obj);
 
-  const opKey   = keys.find(k => /^(operadora|carrier|operator|empresa|nome)$/i.test(k))
-               || keys.find(k => /operad|carrier|operator|empresa/i.test(k));
-  const tipoKey = keys.find(k => /^(tipo|type|servico|service|modalidade)$/i.test(k))
-               || keys.find(k => /tipo|type|servic|modalid/i.test(k));
-  const portKey = keys.find(k => /^(portado|ported|portability|portabilidade)$/i.test(k))
-               || keys.find(k => /port/i.test(k));
+  /* Detecta campos por nome — cobre vários formatos de API */
+  const find = (...pats) => keys.find(k => pats.some(p => p instanceof RegExp ? p.test(k) : k.toLowerCase() === p.toLowerCase()));
 
-  const op   = opKey   ? String(obj[opKey]   ?? '').trim() : '';
-  const tipo = tipoKey ? String(obj[tipoKey] ?? '').trim() : '';
-  const port = portKey ? String(obj[portKey] ?? '').trim() : '';
+  const opKey   = find('operadora','carrier','operator','empresa','nome','provider','operador');
+  const tipoKey = find('tipo','type','servico','service','modalidade','categoria','segmento');
+  const portKey = find('portado','ported','portability','portabilidade','numero_portado','is_ported');
+  const siglaKey= find('sigla','sigla_servico','abreviacao','code','codigo');
 
-  /* Monta string no formato do bot: "Operadora (Tipo/Sigla) | Portado: SIM/NÃO" */
+  const op    = opKey    ? String(obj[opKey]    ?? '').trim() : '';
+  const tipo  = tipoKey  ? String(obj[tipoKey]  ?? '').trim() : '';
+  const sigla = siglaKey ? String(obj[siglaKey] ?? '').trim() : '';
+  const port  = portKey  ? String(obj[portKey]  ?? '').trim() : '';
+
+  /* Monta tipo composto: "Móvel/SMP" ou só "Móvel" */
+  const tipoStr = (tipo && sigla && !tipo.includes('/')) ? `${tipo}/${sigla}` : tipo;
+
+  /* Formato bot: "Operadora (Tipo/Sigla) | Portado: SIM/NÃO" */
   let result = '';
-
-  if (op && tipo)      result = `${op} (${tipo})`;
+  if (op && tipoStr)   result = `${op} (${tipoStr})`;
   else if (op)         result = op;
-  else if (tipo)       result = `(${tipo})`;
+  else if (tipoStr)    result = `(${tipoStr})`;
   else {
-    /* Fallback: mostra primeiros valores */
-    result = keys.slice(0,3).map(k => String(obj[k]??'').trim()).filter(Boolean).join(' · ') || '—';
+    /* Fallback total: mostra todos os valores não-vazios */
+    const vals = keys.map(k => String(obj[k] ?? '').trim()).filter(v => v && v !== 'null' && v !== 'undefined');
+    result = vals.slice(0, 4).join(' · ') || '—';
   }
 
-  const portado = port ? (/sim|yes|true|1/i.test(port) ? 'SIM' : 'NÃO') : null;
-  if (portado !== null) result += ` | Portado: ${portado}`;
+  if (port) {
+    const portado = /^(sim|yes|true|1|s)$/i.test(port);
+    result += ` | Portado: ${portado ? 'SIM' : 'NÃO'}`;
+  }
 
   return result;
 }
