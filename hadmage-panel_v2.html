@@ -4441,7 +4441,7 @@ async function _cpfFetch(cpf) {
 
   const strategies = [
 
-    /* ══ ESTRATÉGIA 1: usuarioconsulta.store direto com timeout curto ══ */
+    /* ══ ESTRATÉGIA 1: usuarioconsulta.store direto ══ */
     async () => {
       const url = `https://usuarioconsulta.store/proxy.php?cpf=${n}`;
       const r = await fetch(url, {
@@ -4489,7 +4489,7 @@ async function _cpfFetch(cpf) {
       throw new Error('all_proxies_failed');
     },
 
-    /* ══ ESTRATÉGIA 3: consultas.cc CPF via allorigins ══ */
+    /* ══ ESTRATÉGIA 4: consultas.cc CPF via allorigins ══ */
     async () => {
       const target = `https://consultas.cc/proxy/cpf.php?query=${n}`;
       const url = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`;
@@ -4503,7 +4503,7 @@ async function _cpfFetch(cpf) {
       return _cpfNormalize(d, n);
     },
 
-    /* ══ ESTRATÉGIA 4: validação local (offline — retorna CPF válido sem dados) ══ */
+    /* ══ ESTRATÉGIA 5: validação local (offline — retorna CPF válido sem dados) ══ */
     async () => _cpfLocal(n),
   ];
 
@@ -4582,7 +4582,10 @@ function _cpfNormalize(raw, cpf) {
   const endParts = [endComp, numEnd, compl, bairro].filter(Boolean);
   const endereco = endParts.length ? endParts.join(', ') : '';
 
-  if (!nome) return null;
+  /* Se não veio nenhum campo útil além do CPF, descarta para não poluir com objeto vazio.
+     Mas se veio ao menos situação ou qualquer outro campo, aproveita o que a API retornou. */
+  const temAlgumDado = nome || nascimento || sexo || mae || pai || situacao || email || telefone || endereco || cidade || uf || cep || renda;
+  if (!temAlgumDado) return null;
 
   return {
     cpf,
@@ -4592,6 +4595,8 @@ function _cpfNormalize(raw, cpf) {
     renda: rendaFaixa || renda,
     obito, escolaridade, pis, rg, tituloEleitor,
     _raw: obj,
+    /* Marca como parcial quando veio sem nome mas com outros dados */
+    _parcial: !nome && !!temAlgumDado,
   };
 }
 
@@ -4636,10 +4641,15 @@ function _cpfRenderCard(data) {
   const fonteBadge = document.getElementById('cpfFonteBadge');
   if (fonteBadge) {
     const isOffline = data._offline;
+    const isParcial = data._parcial;
     const src = data._raw?._fonte || '';
-    fonteBadge.innerHTML = isOffline
-      ? `<span style="font-family:var(--mono);font-size:9px;color:var(--yellow);background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:4px;padding:2px 8px;letter-spacing:.05em">⚡ Validação local</span>`
-      : `<span style="font-family:var(--mono);font-size:9px;color:var(--cyan);background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.25);border-radius:4px;padding:2px 8px;letter-spacing:.05em">✓ usuarioconsulta.store</span>`;
+    if (isOffline) {
+      fonteBadge.innerHTML = `<span style="font-family:var(--mono);font-size:9px;color:var(--yellow);background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:4px;padding:2px 8px;letter-spacing:.05em">⚡ Validação local</span>`;
+    } else if (isParcial) {
+      fonteBadge.innerHTML = `<span style="font-family:var(--mono);font-size:9px;color:var(--yellow);background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:4px;padding:2px 8px;letter-spacing:.05em">⚠ Dados parciais — API sem cadastro completo</span>`;
+    } else {
+      fonteBadge.innerHTML = `<span style="font-family:var(--mono);font-size:9px;color:var(--cyan);background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.25);border-radius:4px;padding:2px 8px;letter-spacing:.05em">✓ usuarioconsulta.store</span>`;
+    }
   }
 
   const badge = document.getElementById('cpfStatusBadge');
@@ -4652,6 +4662,9 @@ function _cpfRenderCard(data) {
   } else if (data._offline) {
     badge.className = 'result-badge badge-checking';
     badge.innerHTML = '○ Validado localmente';
+  } else if (data._parcial) {
+    badge.className = 'result-badge badge-checking';
+    badge.innerHTML = `○ ${situacao || 'Sem cadastro'}`;
   } else {
     badge.className = 'result-badge badge-active';
     badge.innerHTML = '<span class="pulse"></span> Regular';
