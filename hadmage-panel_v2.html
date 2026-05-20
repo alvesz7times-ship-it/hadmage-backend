@@ -1062,6 +1062,45 @@
     .results-col-header, .result-item { grid-template-columns: 14px 1fr 70px; gap: 4px; padding: 8px 10px; }
     .result-number { font-size: 11px; }
   }
+  /* ══════════════════════════════════════════════
+     CONSULTA CPF — estilos
+  ══════════════════════════════════════════════ */
+  .cpf-detalhe-row {
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+    transition: background .15s;
+  }
+  .cpf-detalhe-row:hover { background: var(--surface2); }
+  .cpf-detalhe-row:last-child { border-bottom: none; }
+  .cpf-detalhe-label {
+    font-family: var(--mono); font-size: 9px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .cpf-detalhe-val {
+    font-family: var(--mono); font-size: 13px; color: var(--text);
+    word-break: break-all; line-height: 1.5;
+  }
+  .cpf-detalhe-val.highlight { color: var(--green); font-weight: 700; }
+  .cpf-detalhe-val.warn      { color: var(--yellow); }
+  .cpf-detalhe-val.danger    { color: var(--red); }
+  .cpf-lote-row {
+    display: grid; grid-template-columns: 28px 140px 1fr 100px;
+    gap: 10px; align-items: center; padding: 12px 24px;
+    border-bottom: 1px solid var(--border); transition: background .15s;
+    animation: slideIn .22s ease both;
+  }
+  .cpf-lote-row:last-child { border-bottom: none; }
+  .cpf-lote-row:hover { background: var(--surface2); }
+  .cpf-lote-col-header {
+    display: grid; grid-template-columns: 28px 140px 1fr 100px;
+    gap: 10px; padding: 8px 24px; border-bottom: 1px solid var(--border);
+    background: rgba(30,30,30,.8);
+  }
+  @media (max-width: 640px) {
+    .cpf-lote-col-header { grid-template-columns: 22px 120px 1fr 80px; gap:6px; padding:6px 14px; }
+    .cpf-lote-row        { grid-template-columns: 22px 120px 1fr 80px; gap:6px; padding:10px 14px; }
+    #cpfDetalheBody      { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -1201,6 +1240,10 @@
     <button class="tab-btn" onclick="switchTab('base', this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
       <span>Consultar Base</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('cpf', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0M9 12h.01M15 12h.01M12 12h.01"/></svg>
+      <span>Consulta CPF</span>
     </button>
   </nav>
 
@@ -1699,6 +1742,127 @@
     </div>
 
   </div><!-- /panel-base -->
+
+  <!-- TAB 7 — Consulta CPF -->
+  <div class="tab-panel" id="panel-cpf">
+
+    <div class="input-section">
+      <div class="section-label" style="display:flex;align-items:center;gap:8px">
+        <svg style="width:12px;height:12px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0"/></svg>
+        Consultar CPF
+      </div>
+
+      <!-- Badges de modo -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+        <span style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">Modo:</span>
+        <button id="cpfModeLote" onclick="cpfSetModo('lote')" style="font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:5px;border:1px solid var(--accent-dim);background:rgba(124,111,255,0.12);color:var(--accent);cursor:pointer;transition:all .2s;letter-spacing:.04em">
+          Em Lote
+        </button>
+        <button id="cpfModeUnico" onclick="cpfSetModo('unico')" style="font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .2s;letter-spacing:.04em">
+          CPF Único (detalhado)
+        </button>
+      </div>
+
+      <!-- MODO LOTE -->
+      <div id="cpfInputLote">
+        <textarea id="cpfInputArea" placeholder="Cole os CPFs aqui, um por linha&#10;Ex:&#10;123.456.789-09&#10;98765432100&#10;111.222.333-96" style="min-height:130px"></textarea>
+        <div class="input-meta">
+          <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">Com ou sem pontuação · 11 dígitos · Um por linha</span>
+          <span class="counter" id="cpfCounter">0 CPFs</span>
+        </div>
+      </div>
+
+      <!-- MODO ÚNICO -->
+      <div id="cpfInputUnico" style="display:none">
+        <div style="display:flex;gap:10px;align-items:center">
+          <input id="cpfInputSingle" type="text" maxlength="18"
+            placeholder="000.000.000-00"
+            oninput="cpfFormatarInput(this)"
+            style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--mono);font-size:18px;padding:14px 18px;outline:none;letter-spacing:.12em;transition:border-color .2s,box-shadow .2s"
+            onfocus="this.style.borderColor='var(--cyan-dim)';this.style.boxShadow='0 0 0 3px var(--cyan-glow)'"
+            onblur="this.style.borderColor='var(--border)';this.style.boxShadow='none'"
+          />
+          <div id="cpfValidBadge" style="font-family:var(--mono);font-size:11px;padding:6px 12px;border-radius:8px;border:1px solid var(--border);color:var(--muted);white-space:nowrap;transition:all .2s">
+            — digitar
+          </div>
+        </div>
+      </div>
+
+      <div class="controls" style="margin-top:16px">
+        <button class="btn btn-primary" id="cpfSearchBtn" onclick="cpfConsultar()" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          Consultar
+        </button>
+        <button class="btn btn-secondary" onclick="cpfLimpar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          Limpar
+        </button>
+      </div>
+
+      <div class="error-banner" id="cpfErrorBanner"></div>
+    </div>
+
+    <!-- Stats bar (modo lote) -->
+    <div class="stats-bar" id="cpfStatsBar" style="display:none">
+      <div class="stat-pill" id="cpfPillTotal">
+        <div class="stat-dot dot-gray"></div>
+        <div class="stat-info"><div class="stat-label">Consultados</div><div class="stat-value gray" id="cpfTotalVal">0</div></div>
+      </div>
+      <div class="stat-pill" id="cpfPillFound">
+        <div class="stat-dot dot-green"></div>
+        <div class="stat-info"><div class="stat-label">Encontrados</div><div class="stat-value green" id="cpfFoundVal">0</div></div>
+      </div>
+      <div class="stat-pill" id="cpfPillInvalid">
+        <div class="stat-dot dot-yellow"></div>
+        <div class="stat-info"><div class="stat-label">Inválidos</div><div class="stat-value yellow" id="cpfInvalidVal">0</div></div>
+      </div>
+      <div class="stat-pill" id="cpfPillMiss">
+        <div class="stat-dot dot-red"></div>
+        <div class="stat-info"><div class="stat-label">Não Encontrados</div><div class="stat-value red" id="cpfMissVal">0</div></div>
+      </div>
+    </div>
+
+    <!-- Resultados lote -->
+    <div class="results-section" id="cpfResultsSection" style="display:none">
+      <div class="results-header">
+        <span class="results-title">Resultado da Consulta</span>
+        <div class="filter-tabs">
+          <button class="filter-tab active" onclick="cpfSetFiltro('all',this)">Todos</button>
+          <button class="filter-tab" onclick="cpfSetFiltro('found',this)">Encontrados</button>
+          <button class="filter-tab" onclick="cpfSetFiltro('miss',this)">Não Encontrados</button>
+          <button class="filter-tab" onclick="cpfSetFiltro('invalid',this)">Inválidos</button>
+        </div>
+      </div>
+      <div class="results-list" id="cpfResultsList" style="max-height:500px;overflow-y:auto"></div>
+    </div>
+
+    <!-- Resultado único (detalhado) -->
+    <div id="cpfDetalheSection" style="display:none;animation:fadeUp .4s ease both">
+      <div class="results-section">
+        <div class="results-header">
+          <span class="results-title" style="display:flex;align-items:center;gap:8px">
+            <span id="cpfDetalheStatusDot" style="width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);flex-shrink:0;display:inline-block"></span>
+            Dados do CPF
+          </span>
+          <span id="cpfDetalheBadge" class="result-badge badge-active"><span class="pulse"></span>Encontrado</span>
+        </div>
+        <div id="cpfDetalheBody" style="padding:20px 24px;display:grid;grid-template-columns:1fr 1fr;gap:0"></div>
+      </div>
+    </div>
+
+    <!-- Export bar -->
+    <div class="export-bar" id="cpfExportBar" style="display:none">
+      <button class="btn btn-secondary" onclick="cpfExportCSV()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Exportar Encontrados (CSV)
+      </button>
+      <button class="btn btn-secondary" id="cpfCopyBtn" onclick="cpfCopiarEncontrados()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        Copiar CPFs Encontrados
+      </button>
+    </div>
+
+  </div><!-- /panel-cpf -->
 
   <div class="dev-footer">
     <span>Desenvolvido por</span>
@@ -4139,5 +4303,1115 @@ function baseCopiarEncontrados() {
     setTimeout(() => { btn.innerHTML = orig; }, 2500);
   });
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   CONSULTA CPF
+═══════════════════════════════════════════════════════════════════ */
+
+let _cpfResults  = [];
+let _cpfFiltro   = 'all';
+let _cpfModo     = 'lote'; /* 'lote' | 'unico' */
+
+/* ── Validação de CPF (algoritmo oficial Receita Federal) ── */
+function cpfValido(cpf) {
+  const n = cpf.replace(/\D/g,'');
+  if (n.length !== 11 || /^(\d)\1{10}$/.test(n)) return false;
+  let s = 0;
+  for (let i = 0; i < 9; i++) s += parseInt(n[i]) * (10 - i);
+  let r = (s * 10) % 11; if (r === 10 || r === 11) r = 0;
+  if (r !== parseInt(n[9])) return false;
+  s = 0;
+  for (let i = 0; i < 10; i++) s += parseInt(n[i]) * (11 - i);
+  r = (s * 10) % 11; if (r === 10 || r === 11) r = 0;
+  return r === parseInt(n[10]);
+}
+
+function cpfFormatar(cpf) {
+  const n = cpf.replace(/\D/g,'').slice(0,11);
+  return n.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+}
+
+function cpfFormatarInput(el) {
+  const raw = el.value.replace(/\D/g,'').slice(0,11);
+  el.value = raw
+    .replace(/(\d{3})(?=\d)/,'$1.')
+    .replace(/(\d{3}\.\d{3})(?=\d)/,'$1.')
+    .replace(/(\d{3}\.\d{3}\.\d{3})(?=\d)/,'$1-');
+  const badge = document.getElementById('cpfValidBadge');
+  const btn   = document.getElementById('cpfSearchBtn');
+  if (raw.length < 11) {
+    badge.textContent = '— digitar'; badge.style.color = 'var(--muted)'; badge.style.borderColor = 'var(--border)'; badge.style.background = 'transparent';
+    btn.disabled = true;
+  } else if (cpfValido(raw)) {
+    badge.textContent = '✓ CPF válido'; badge.style.color = 'var(--green)'; badge.style.borderColor = 'rgba(0,229,160,.4)'; badge.style.background = 'rgba(0,229,160,.06)';
+    btn.disabled = false;
+  } else {
+    badge.textContent = '✕ CPF inválido'; badge.style.color = 'var(--red)'; badge.style.borderColor = 'rgba(255,77,77,.4)'; badge.style.background = 'rgba(255,77,77,.06)';
+    btn.disabled = true;
+  }
+}
+
+function cpfSetModo(modo) {
+  _cpfModo = modo;
+  document.getElementById('cpfInputLote').style.display  = modo === 'lote'  ? 'block' : 'none';
+  document.getElementById('cpfInputUnico').style.display = modo === 'unico' ? 'block' : 'none';
+
+  const btnLote  = document.getElementById('cpfModeLote');
+  const btnUnico = document.getElementById('cpfModeUnico');
+  if (modo === 'lote') {
+    btnLote.style.cssText  = 'font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:5px;border:1px solid var(--accent-dim);background:rgba(124,111,255,0.12);color:var(--accent);cursor:pointer;transition:all .2s;letter-spacing:.04em';
+    btnUnico.style.cssText = 'font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .2s;letter-spacing:.04em';
+    const nums = _cpfParseNums(document.getElementById('cpfInputArea').value);
+    document.getElementById('cpfSearchBtn').disabled = nums.length === 0;
+  } else {
+    btnUnico.style.cssText = 'font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:5px;border:1px solid var(--accent-dim);background:rgba(124,111,255,0.12);color:var(--accent);cursor:pointer;transition:all .2s;letter-spacing:.04em';
+    btnLote.style.cssText  = 'font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .2s;letter-spacing:.04em';
+    const val = (document.getElementById('cpfInputSingle').value || '').replace(/\D/g,'');
+    document.getElementById('cpfSearchBtn').disabled = !(val.length === 11 && cpfValido(val));
+  }
+
+  cpfLimparResultados();
+}
+
+function _cpfParseNums(text) {
+  return [...new Set(
+    text.split('\n')
+      .map(l => l.trim().replace(/\D/g,''))
+      .filter(l => l.length === 11)
+  )];
+}
+
+/* ── APIs de consulta CPF em cascata ── */
+async function _cpfFetchDados(cpf) {
+  const n = cpf.replace(/\D/g,'');
+
+  /* Estratégia 1: brasilapi.com.br/api/cpf (não existe, mas tenta) */
+  /* Estratégia 2: consultacpf via allorigins */
+  const strategies = [
+
+    /* ReceitaWS — gratuita e sem autenticação */
+    async () => {
+      const url = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://www.receitaws.com.br/v1/cpf/${n}`)}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) throw new Error('fail');
+      const w = await r.json();
+      const d = JSON.parse(w.contents || '{}');
+      if (d && d.nome) return _cpfNormalize(d, n);
+      throw new Error('no_data');
+    },
+
+    /* API CPF direto (alguns ambientes permitem) */
+    async () => {
+      const url = `https://www.receitaws.com.br/v1/cpf/${n}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { 'Accept':'application/json' } });
+      if (!r.ok) throw new Error('fail');
+      const d = await r.json();
+      if (d && d.nome) return _cpfNormalize(d, n);
+      throw new Error('no_data');
+    },
+
+    /* consultacpf.com.br via allorigins — faz scraping do HTML */
+    async () => {
+      const url = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://www.consultacpf.com.br/${n}`)}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(12000) });
+      if (!r.ok) throw new Error('fail');
+      const w = await r.json();
+      const html = w.contents || '';
+      return _cpfScrapHTML(html, n);
+    },
+
+    /* cpf.info via allorigins */
+    async () => {
+      const url = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://cpf.info/${n}`)}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(12000) });
+      if (!r.ok) throw new Error('fail');
+      const w = await r.json();
+      const html = w.contents || '';
+      return _cpfScrapHTML(html, n);
+    },
+
+  ];
+
+  for (const s of strategies) {
+    try { const d = await s(); if (d) return d; } catch (_) {}
+  }
+  return null;
+}
+
+function _cpfNormalize(d, cpf) {
+  if (!d) return null;
+  const get = (obj, ...keys) => {
+    for (const k of keys) {
+      const fk = Object.keys(obj).find(ok => ok.toLowerCase() === k.toLowerCase());
+      if (fk && obj[fk] !== null && obj[fk] !== undefined && String(obj[fk]).trim()) return String(obj[fk]).trim();
+    }
+    return '';
+  };
+
+  return {
+    cpf:          cpfFormatar(cpf),
+    nome:         get(d,'nome','name','titular','razaosocial','razão_social') || '—',
+    situacao:     get(d,'situacao','status','situação') || '—',
+    dataNasc:     get(d,'data_nascimento','nascimento','datanascimento','birthday','birthdate') || '—',
+    sexo:         get(d,'sexo','genero','gênero','sex','gender') || '—',
+    renda:        get(d,'renda','rendimento','income','salario','salary') || '—',
+    email:        get(d,'email','e-mail','mail') || '—',
+    telefone:     get(d,'telefone','fone','phone','celular','mobile') || '—',
+    mae:          get(d,'mae','mãe','mother','nome_mae','nomemae') || '—',
+    pai:          get(d,'pai','father','nome_pai','nomepai') || '—',
+    endereco:     (() => {
+      const rua  = get(d,'logradouro','rua','street','address','endereco','endereço');
+      const num  = get(d,'numero','número','number');
+      const bair = get(d,'bairro','district','neighborhood');
+      const cid  = get(d,'municipio','cidade','city','localidade');
+      const uf   = get(d,'uf','estado','state');
+      const cep  = get(d,'cep','zipcode','zip');
+      return [rua, num, bair, cid, uf, cep].filter(Boolean).join(', ') || '—';
+    })(),
+    escolaridade: get(d,'escolaridade','education','grau_instrucao') || '—',
+    _raw:         d,
+  };
+}
+
+function _cpfScrapHTML(html, cpf) {
+  if (!html || html.length < 100) return null;
+  const get = (pattern) => {
+    const m = html.match(pattern);
+    return m ? m[1].replace(/<[^>]+>/g,'').replace(/&[a-z]+;/g,' ').trim() : '';
+  };
+
+  const nome = get(/nome[^:]*:\s*<[^>]*>([^<]{3,80})</i) ||
+               get(/>[Nn]ome[^<]*<\/[^>]+>\s*<[^>]+>([A-ZÀÁÂÃÉÊÍÓÔÕÚÇ][^<]{2,60})</);
+  if (!nome) return null;
+
+  const situacao = get(/situa[çc][aã]o[^:]*:\s*<[^>]*>([^<]{2,40})</i) ||
+                   get(/Status[^:]*:\s*<[^>]*>([^<]{2,30})</i);
+  const nasc     = get(/nascimento[^:]*:\s*<[^>]*>([^<]{4,20})</i);
+
+  return { cpf: cpfFormatar(cpf), nome, situacao: situacao || '—', dataNasc: nasc || '—', sexo:'—', renda:'—', email:'—', telefone:'—', mae:'—', pai:'—', endereco:'—', escolaridade:'—', _raw:{} };
+}
+
+/* ── Renderiza card de detalhe (modo único) ── */
+function _cpfRenderDetalhe(dados) {
+  const sec  = document.getElementById('cpfDetalheSection');
+  const body = document.getElementById('cpfDetalheBody');
+  const dot  = document.getElementById('cpfDetalheStatusDot');
+  const badge= document.getElementById('cpfDetalheBadge');
+
+  const sit = (dados.situacao || '').toUpperCase();
+  const ok  = sit.includes('REGULAR') || sit.includes('ATIVO') || sit.includes('OK') || sit.includes('ATIVA');
+  const irr = sit.includes('IRREGULAR') || sit.includes('SUSP') || sit.includes('CANCEL');
+
+  dot.style.background  = ok ? 'var(--green)' : irr ? 'var(--red)' : 'var(--yellow)';
+  dot.style.boxShadow   = ok ? '0 0 8px var(--green)' : irr ? '0 0 8px var(--red)' : '0 0 8px var(--yellow)';
+  badge.className = 'result-badge ' + (ok ? 'badge-active' : irr ? 'badge-banned' : 'badge-invalid');
+  badge.innerHTML = (ok ? '<span class="pulse"></span>Regular' : irr ? '✕ Irregular' : '⚠ Pendente');
+
+  const campos = [
+    { label:'CPF',          val: dados.cpf,         cls: 'highlight' },
+    { label:'Nome',         val: dados.nome,         cls: '' },
+    { label:'Situação',     val: dados.situacao,     cls: ok ? 'highlight' : irr ? 'danger' : 'warn' },
+    { label:'Data Nasc.',   val: dados.dataNasc,     cls: '' },
+    { label:'Sexo',         val: dados.sexo,         cls: '' },
+    { label:'Renda Est.',   val: dados.renda,        cls: '' },
+    { label:'Mãe',          val: dados.mae,          cls: '' },
+    { label:'Pai',          val: dados.pai,          cls: '' },
+    { label:'E-mail',       val: dados.email,        cls: '' },
+    { label:'Telefone',     val: dados.telefone,     cls: '' },
+    { label:'Escolaridade', val: dados.escolaridade, cls: '' },
+    { label:'Endereço',     val: dados.endereco,     cls: '' },
+  ];
+
+  body.innerHTML = campos.map(c => `
+    <div class="cpf-detalhe-row">
+      <div class="cpf-detalhe-label">${escH(c.label)}</div>
+      <div class="cpf-detalhe-val ${c.cls}">${escH(c.val)}</div>
+    </div>`).join('');
+
+  sec.style.display = 'block';
+}
+
+/* ── Renderiza lista (modo lote) ── */
+function _cpfRender() {
+  const list = document.getElementById('cpfResultsList');
+  const data = _cpfFiltro === 'found'   ? _cpfResults.filter(r => r.status === 'found')
+             : _cpfFiltro === 'miss'    ? _cpfResults.filter(r => r.status === 'miss')
+             : _cpfFiltro === 'invalid' ? _cpfResults.filter(r => r.status === 'invalid')
+             : _cpfResults;
+
+  if (!data.length) {
+    list.innerHTML = '<div class="empty-state"><p>Nenhum resultado para este filtro.</p></div>';
+    return;
+  }
+
+  list.innerHTML = `
+    <div class="cpf-lote-col-header">
+      <span class="col-label">#</span>
+      <span class="col-label">CPF</span>
+      <span class="col-label">Nome / Info</span>
+      <span class="col-label">Status</span>
+    </div>
+    ${data.map((item, idx) => {
+      const cpfDisplay = cpfFormatar(item.raw);
+
+      if (item.status === 'pending') return `
+        <div class="cpf-lote-row" style="animation-delay:${Math.min(idx*8,200)}ms">
+          <span class="result-idx">${idx+1}</span>
+          <span style="font-family:var(--mono);font-size:12px;color:var(--text)">${escH(cpfDisplay)}</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin" style="width:12px;height:12px"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+            consultando…
+          </span>
+          <span class="result-badge badge-checking">—</span>
+        </div>`;
+
+      if (item.status === 'invalid') return `
+        <div class="cpf-lote-row" style="animation-delay:${Math.min(idx*8,200)}ms">
+          <span class="result-idx">${idx+1}</span>
+          <span style="font-family:var(--mono);font-size:12px;color:var(--muted)">${escH(item.raw)}</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">CPF matematicamente inválido</span>
+          <span class="result-badge badge-invalid">✕ Inválido</span>
+        </div>`;
+
+      if (item.status === 'miss') return `
+        <div class="cpf-lote-row" style="animation-delay:${Math.min(idx*8,200)}ms">
+          <span class="result-idx">${idx+1}</span>
+          <span style="font-family:var(--mono);font-size:12px;color:var(--muted)">${escH(cpfDisplay)}</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">— não encontrado</span>
+          <span class="result-badge badge-invalid">✕ Não encontrado</span>
+        </div>`;
+
+      /* Encontrado */
+      const d   = item.dados;
+      const sit = (d.situacao || '').toUpperCase();
+      const ok  = sit.includes('REGULAR') || sit.includes('ATIVO') || sit.includes('ATIVA');
+      const irr = sit.includes('IRREGULAR') || sit.includes('SUSP') || sit.includes('CANCEL');
+      const badgeCls = ok ? 'badge-active' : irr ? 'badge-banned' : 'badge-invalid';
+      const badgeTxt = ok ? '<span class="pulse"></span>Regular' : irr ? '✕ Irregular' : '⚠ Pendente';
+
+      return `
+        <div class="cpf-lote-row" style="animation-delay:${Math.min(idx*8,200)}ms">
+          <span class="result-idx">${idx+1}</span>
+          <span style="font-family:var(--mono);font-size:12px;color:var(--text)">${escH(cpfDisplay)}</span>
+          <span style="font-family:var(--mono);font-size:12px;line-height:1.5">
+            <strong style="color:var(--text)">${escH(d.nome)}</strong>
+            ${d.dataNasc !== '—' ? `<br><span style="font-size:10px;color:var(--muted)">Nasc: ${escH(d.dataNasc)}</span>` : ''}
+          </span>
+          <span class="result-badge ${badgeCls}">${badgeTxt}</span>
+        </div>`;
+    }).join('')}`;
+}
+
+function _cpfStats() {
+  const total   = _cpfResults.length;
+  const found   = _cpfResults.filter(r => r.status === 'found').length;
+  const miss    = _cpfResults.filter(r => r.status === 'miss').length;
+  const invalid = _cpfResults.filter(r => r.status === 'invalid').length;
+  document.getElementById('cpfStatsBar').style.display = 'flex';
+  document.getElementById('cpfTotalVal').textContent   = total;
+  document.getElementById('cpfFoundVal').textContent   = found;
+  document.getElementById('cpfMissVal').textContent    = miss;
+  document.getElementById('cpfInvalidVal').textContent = invalid;
+  document.getElementById('cpfPillFound').className   = 'stat-pill' + (found   > 0 ? ' active-green'  : '');
+  document.getElementById('cpfPillMiss').className    = 'stat-pill' + (miss    > 0 ? ' active-red'    : '');
+  document.getElementById('cpfPillInvalid').className = 'stat-pill' + (invalid > 0 ? ' active-yellow' : '');
+}
+
+async function cpfConsultar() {
+  const btn = document.getElementById('cpfSearchBtn');
+  const err = document.getElementById('cpfErrorBanner');
+  err.classList.remove('visible'); err.textContent = '';
+
+  /* ── MODO ÚNICO ── */
+  if (_cpfModo === 'unico') {
+    const raw = (document.getElementById('cpfInputSingle').value || '').replace(/\D/g,'');
+    if (!cpfValido(raw)) return;
+
+    btn.disabled = true;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spin" style="width:15px;height:15px"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Consultando…`;
+    document.getElementById('cpfDetalheSection').style.display = 'none';
+    document.getElementById('cpfStatsBar').style.display = 'none';
+    document.getElementById('cpfResultsSection').style.display = 'none';
+    document.getElementById('cpfExportBar').style.display = 'none';
+
+    try {
+      const dados = await _cpfFetchDados(raw);
+      if (dados) {
+        _cpfRenderDetalhe(dados);
+      } else {
+        err.textContent = '⚠ CPF não encontrado nas bases consultadas. Verifique o número e tente novamente.';
+        err.classList.add('visible');
+      }
+    } catch (e) {
+      err.textContent = '⚠ Erro ao consultar: ' + e.message;
+      err.classList.add('visible');
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> Consultar`;
+    return;
+  }
+
+  /* ── MODO LOTE ── */
+  const raw = _cpfParseNums(document.getElementById('cpfInputArea').value);
+  if (!raw.length) return;
+
+  btn.disabled = true;
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spin" style="width:15px;height:15px"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Consultando…`;
+
+  document.getElementById('cpfStatsBar').style.display = 'none';
+  document.getElementById('cpfResultsSection').style.display = 'none';
+  document.getElementById('cpfExportBar').style.display = 'none';
+  document.getElementById('cpfDetalheSection').style.display = 'none';
+
+  _cpfResults = raw.map(r => ({ raw: r, status: cpfValido(r) ? 'pending' : 'invalid', dados: null }));
+  _cpfFiltro  = 'all';
+  document.querySelectorAll('#cpfResultsSection .filter-tab').forEach((t,i) => t.classList.toggle('active', i===0));
+  document.getElementById('cpfResultsSection').style.display = 'block';
+  _cpfRender();
+
+  const LOTE = 3;
+  const validos = _cpfResults.filter(r => r.status === 'pending');
+
+  for (let i = 0; i < validos.length; i += LOTE) {
+    const lote = validos.slice(i, i + LOTE);
+    await Promise.all(lote.map(async item => {
+      try {
+        const dados = await _cpfFetchDados(item.raw);
+        if (dados) {
+          item.dados  = dados;
+          item.status = 'found';
+        } else {
+          item.status = 'miss';
+        }
+      } catch (_) {
+        item.status = 'miss';
+      }
+    }));
+    _cpfStats();
+    _cpfRender();
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> Consultar`;
+  _cpfStats();
+  _cpfRender();
+  const found = _cpfResults.filter(r => r.status === 'found').length;
+  document.getElementById('cpfExportBar').style.display = found > 0 ? 'flex' : 'none';
+}
+
+function cpfSetFiltro(f, btn) {
+  _cpfFiltro = f;
+  document.querySelectorAll('#cpfResultsSection .filter-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  _cpfRender();
+}
+
+function cpfLimparResultados() {
+  _cpfResults = [];
+  ['cpfStatsBar','cpfResultsSection','cpfExportBar','cpfDetalheSection'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  ['cpfTotalVal','cpfFoundVal','cpfMissVal','cpfInvalidVal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '0';
+  });
+  const list = document.getElementById('cpfResultsList');
+  if (list) list.innerHTML = '';
+  const err = document.getElementById('cpfErrorBanner');
+  if (err) { err.classList.remove('visible'); err.textContent = ''; }
+}
+
+function cpfLimpar() {
+  cpfLimparResultados();
+  const ta = document.getElementById('cpfInputArea');
+  if (ta) { ta.value = ''; ta.dispatchEvent(new Event('input')); }
+  const si = document.getElementById('cpfInputSingle');
+  if (si) { si.value = ''; cpfFormatarInput(si); }
+  document.getElementById('cpfSearchBtn').disabled = true;
+  document.getElementById('cpfCounter').textContent = '0 CPFs';
+  document.getElementById('cpfCounter').className = 'counter';
+}
+
+function cpfExportCSV() {
+  const found = _cpfResults.filter(r => r.status === 'found');
+  if (!found.length) return;
+  const cols = ['cpf','nome','situacao','dataNasc','sexo','renda','mae','pai','email','telefone','escolaridade','endereco'];
+  const rows = [cols, ...found.map(r => cols.map(c => JSON.stringify(r.dados?.[c] ?? '')))];
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([rows.map(r=>r.join(',')).join('\n')],{type:'text/csv'}));
+  a.download = 'cpf_encontrados.csv';
+  a.click();
+}
+
+function cpfCopiarEncontrados() {
+  const found = _cpfResults.filter(r => r.status === 'found').map(r => cpfFormatar(r.raw));
+  if (!found.length) return;
+  navigator.clipboard.writeText(found.join('\n')).then(() => {
+    const btn = document.getElementById('cpfCopyBtn');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Copiado!';
+    setTimeout(() => { btn.innerHTML = orig; }, 2500);
+  });
+}
+
+/* ── Inicializar contador de CPFs no textarea ── */
+(function _initCPF() {
+  const ta  = document.getElementById('cpfInputArea');
+  const ctr = document.getElementById('cpfCounter');
+  const btn = document.getElementById('cpfSearchBtn');
+  if (!ta) return;
+  ta.addEventListener('input', () => {
+    if (_cpfModo !== 'lote') return;
+    const nums = _cpfParseNums(ta.value);
+    ctr.textContent = nums.length + ' CPF' + (nums.length !== 1 ? 's' : '');
+    ctr.className   = 'counter' + (nums.length > 0 ? ' has-numbers' : '');
+    btn.disabled    = nums.length === 0;
+  });
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   CONSULTA CPF — lógica completa
+═══════════════════════════════════════════════════════════════════ */
+
+let _cpfMode       = 'single'; /* 'single' | 'batch' */
+let _cpfDebugOn    = false;
+let _cpfBatchData  = [];       /* resultados do lote */
+let _cpfBatchFiltro = 'all';
+let _cpfLastResult  = null;    /* último resultado individual */
+
+/* ── Modo ── */
+function cpfSetMode(mode, btn) {
+  _cpfMode = mode;
+  document.querySelectorAll('.cpf-mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const single = document.getElementById('cpfSingleBlock');
+  const batch  = document.getElementById('cpfBatchBlock');
+  const stats  = document.getElementById('cpfStatsBar');
+  const tbl    = document.getElementById('cpfBatchResults');
+  const card   = document.getElementById('cpfResultCard');
+  const exp    = document.getElementById('cpfExportBar');
+  const prog   = document.getElementById('cpfProgressWrap');
+  const progTx = document.getElementById('cpfProgressText');
+
+  if (mode === 'single') {
+    single.style.display = 'block'; batch.style.display = 'none';
+    stats.style.display  = 'none';  tbl.style.display   = 'none';
+    exp.style.display    = 'none';  prog.classList.remove('visible');
+    progTx.classList.remove('visible');
+    /* mantém card se houver resultado */
+  } else {
+    single.style.display = 'none'; batch.style.display = 'block';
+    card.style.display   = 'none';
+    cpfBatchCount();
+  }
+
+  document.getElementById('cpfSearchBtn').disabled =
+    mode === 'single'
+      ? !_cpfIsValid(_cpfStrip(document.getElementById('cpfInput').value))
+      : (_cpfParseBatch(document.getElementById('cpfBatchInput').value).length === 0);
+}
+
+/* ── Máscara e validação ── */
+function cpfMaskInput(input) {
+  let v = input.value.replace(/\D/g,'').slice(0,11);
+  if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/,'$1.$2.$3-$4');
+  else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{0,3})/,'$1.$2.$3');
+  else if (v.length > 3) v = v.replace(/(\d{3})(\d{0,3})/,'$1.$2');
+  input.value = v;
+
+  const raw   = _cpfStrip(v);
+  const valid = _cpfIsValid(raw);
+  const btn   = document.getElementById('cpfSearchBtn');
+  const badge = document.getElementById('cpfValidBadge');
+  const clear = document.getElementById('cpfClearBtn');
+
+  input.classList.toggle('cpf-valid',   raw.length === 11 && valid);
+  input.classList.toggle('cpf-invalid', raw.length === 11 && !valid);
+
+  clear.style.display = raw.length > 0 ? 'flex' : 'none';
+
+  if (raw.length === 11) {
+    badge.style.display  = 'inline';
+    badge.textContent    = valid ? '✓ CPF válido' : '✗ CPF inválido';
+    badge.style.color    = valid ? 'var(--green)' : 'var(--red)';
+  } else {
+    badge.style.display = 'none';
+  }
+
+  btn.disabled = !(raw.length === 11 && valid);
+}
+
+function cpfBatchCount() {
+  const nums = _cpfParseBatch(document.getElementById('cpfBatchInput').value);
+  const ctr  = document.getElementById('cpfBatchCounter');
+  ctr.textContent = nums.length + ' CPF' + (nums.length !== 1 ? 's' : '');
+  ctr.className   = 'counter' + (nums.length > 0 ? ' has-numbers' : '');
+  document.getElementById('cpfSearchBtn').disabled = nums.length === 0;
+}
+
+function _cpfStrip(v) { return String(v).replace(/\D/g,''); }
+
+function _cpfIsValid(cpf) {
+  cpf = _cpfStrip(cpf);
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+  let sum = 0, rest;
+  for (let i = 1; i <= 9; i++) sum += parseInt(cpf[i-1]) * (11 - i);
+  rest = (sum * 10) % 11;
+  if (rest === 10 || rest === 11) rest = 0;
+  if (rest !== parseInt(cpf[9])) return false;
+  sum = 0;
+  for (let i = 1; i <= 10; i++) sum += parseInt(cpf[i-1]) * (12 - i);
+  rest = (sum * 10) % 11;
+  if (rest === 10 || rest === 11) rest = 0;
+  return rest === parseInt(cpf[10]);
+}
+
+function _cpfFormat(cpf) {
+  cpf = _cpfStrip(cpf);
+  return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4');
+}
+
+function _cpfParseBatch(text) {
+  return [...new Set(
+    text.split('\n')
+      .map(l => _cpfStrip(l.trim()))
+      .filter(l => l.length === 11 && _cpfIsValid(l))
+  )];
+}
+
+/* ── Debug ── */
+function cpfToggleDebug() {
+  _cpfDebugOn = !_cpfDebugOn;
+  const panel = document.getElementById('cpfDebugPanel');
+  const btn   = document.getElementById('cpfDebugBtn');
+  panel.style.display   = _cpfDebugOn ? 'block' : 'none';
+  btn.style.opacity     = _cpfDebugOn ? '1' : '0.5';
+  btn.style.borderColor = _cpfDebugOn ? 'var(--cyan)' : '';
+  btn.style.color       = _cpfDebugOn ? 'var(--cyan)' : '';
+}
+
+function _cpfLogDebug(data, cpf) {
+  const pre = document.getElementById('cpfDebugPre');
+  if (pre) pre.textContent = `// CPF: ${_cpfFormat(cpf)}\n\n${JSON.stringify(data, null, 2)}`;
+  if (_cpfDebugOn) document.getElementById('cpfDebugPanel').style.display = 'block';
+}
+
+/* ── APIs de consulta ── */
+async function _cpfFetch(cpf) {
+  const strategies = [
+
+    /* Estratégia 1: Brasil API — dados públicos da Receita Federal (via CNPJ) */
+    async () => {
+      /* Consulta pública via ReceitaWS — CPF não expõe nome mas valida situação */
+      const url = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://www.receitaws.com.br/v1/cpf/${cpf}`)}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) throw new Error('receitaws_fail');
+      const w = await r.json();
+      const d = JSON.parse(w?.contents || '{}');
+      if (d && d.nome) return _cpfNormalize(d, cpf);
+      throw new Error('no_name');
+    },
+
+    /* Estratégia 2: consultas.cc CPF proxy */
+    async () => {
+      const target = `https://consultas.cc/proxy/cpf.php?query=${cpf}`;
+      const url = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) throw new Error('cc_cpf_fail');
+      const w = await r.json();
+      const text = w?.contents || '';
+      if (!text || text.trim().startsWith('<') || text.toLowerCase().includes('not in allowlist')) throw new Error('blocked');
+      const d = JSON.parse(text);
+      return _cpfNormalize(d, cpf);
+    },
+
+    /* Estratégia 3: consultas.cc direto */
+    async () => {
+      const r = await fetch(`https://consultas.cc/proxy/cpf.php?query=${cpf}`, {
+        signal: AbortSignal.timeout(8000), headers: { 'Accept': 'application/json' }
+      });
+      if (!r.ok) throw new Error('cc_direct_fail');
+      const text = await r.text();
+      if (!text || text.trim().startsWith('<')) throw new Error('blocked');
+      return _cpfNormalize(JSON.parse(text), cpf);
+    },
+
+    /* Estratégia 4: CORS proxy alternativo */
+    async () => {
+      const target = `https://api.cpfcnpj.com.br/5ae973d7a997af13f0aaf2bf60e65803/1/${cpf}`;
+      const url = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) throw new Error('cpfcnpj_fail');
+      const w = await r.json();
+      const d = JSON.parse(w?.contents || '{}');
+      if (d && (d.nome || d.NOME)) return _cpfNormalize(d, cpf);
+      throw new Error('no_data');
+    },
+
+    /* Estratégia 5: validação local (offline — retorna apenas dados calculáveis) */
+    async () => {
+      return _cpfLocal(cpf);
+    },
+  ];
+
+  for (const s of strategies) {
+    try {
+      const result = await s();
+      if (result) return result;
+    } catch (_) {}
+  }
+  return _cpfLocal(cpf);
+}
+
+/* ── Normaliza resposta de qualquer API para objeto padrão ── */
+function _cpfNormalize(raw, cpf) {
+  if (!raw || typeof raw !== 'object') return null;
+
+  /* Desembrulha wrappers comuns */
+  const d = raw.data ?? raw.result ?? raw.results ?? raw.response ?? raw;
+  const obj = Array.isArray(d) ? d[0] : d;
+  if (!obj || typeof obj !== 'object') return null;
+
+  const g = (...keys) => {
+    for (const k of keys) {
+      const found = Object.keys(obj).find(ok => ok.toLowerCase() === k.toLowerCase());
+      if (found && obj[found] !== null && String(obj[found]).trim()) return String(obj[found]).trim();
+    }
+    return '';
+  };
+
+  const nome       = g('nome','name','NOME','nome_completo','full_name','razao_social');
+  const nascimento = g('nascimento','data_nascimento','birthday','birth_date','nascto','dt_nascimento','NASCIMENTO');
+  const sexo       = g('sexo','genero','gender','sex','SEXO');
+  const mae        = g('mae','nome_mae','mother','nome_da_mae','MAE');
+  const pai        = g('pai','nome_pai','father','nome_do_pai','PAI');
+  const situacao   = g('situacao','status','situacao_cpf','STATUS','SITUACAO');
+  const email      = g('email','EMAIL','e_mail');
+  const telefone   = g('telefone','fone','phone','TELEFONE','celular');
+  const endereco   = g('endereco','logradouro','address','ENDERECO','rua');
+  const cidade     = g('cidade','municipio','city','CIDADE','localidade');
+  const uf         = g('uf','estado','state','UF','ESTADO');
+  const cep        = g('cep','CEP','zip','postal_code');
+  const renda      = g('renda','renda_estimada','income','RENDA');
+  const obito      = g('obito','falecido','deceased','OBITO','morte');
+
+  if (!nome) return null;
+
+  return { cpf, nome, nascimento, sexo, mae, pai, situacao, email, telefone, endereco, cidade, uf, cep, renda, obito, _raw: obj };
+}
+
+/* ── Resultado local (offline) — só dados calculáveis ── */
+function _cpfLocal(cpf) {
+  return {
+    cpf,
+    nome:       '',
+    nascimento: '',
+    sexo:       '',
+    mae:        '',
+    pai:        '',
+    situacao:   'Regular',
+    email:      '',
+    telefone:   '',
+    endereco:   '',
+    cidade:     '',
+    uf:         '',
+    cep:        '',
+    renda:      '',
+    obito:      '',
+    _offline:   true,
+  };
+}
+
+/* ── Renderiza card individual ── */
+function _cpfRenderCard(data) {
+  _cpfLastResult = data;
+
+  const nome     = data.nome     || '—';
+  const inicial  = nome !== '—' ? nome.trim().charAt(0).toUpperCase() : '?';
+  const cpfFmt   = _cpfFormat(data.cpf);
+  const situacao = data.situacao || 'Regular';
+  const isObito  = /sim|yes|true|1|falecido|morto/i.test(data.obito || '');
+  const isIreg   = /irregular|suspen|cancel|bloq|inativa/i.test(situacao);
+
+  document.getElementById('cpfAvatar').textContent  = inicial;
+  document.getElementById('cpfNome').textContent    = nome;
+  document.getElementById('cpfNumero').textContent  = cpfFmt;
+
+  const badge = document.getElementById('cpfStatusBadge');
+  if (isObito) {
+    badge.className = 'result-badge badge-banned';
+    badge.innerHTML = '✕ Óbito registrado';
+  } else if (isIreg) {
+    badge.className = 'result-badge badge-invalid';
+    badge.innerHTML = `⚠ ${situacao}`;
+  } else if (data._offline) {
+    badge.className = 'result-badge badge-checking';
+    badge.innerHTML = '○ Validado localmente';
+  } else {
+    badge.className = 'result-badge badge-active';
+    badge.innerHTML = '<span class="pulse"></span> Regular';
+  }
+
+  /* Monta campos do grid */
+  const fields = [
+    { label: 'CPF',           value: cpfFmt,          cls: '' },
+    { label: 'Situação',      value: situacao,         cls: isIreg || isObito ? 'red' : 'green' },
+    { label: 'Nome Completo', value: data.nome,        cls: '', full: true },
+    { label: 'Nascimento',    value: _cpfFmtData(data.nascimento) },
+    { label: 'Sexo',          value: _cpfFmtSexo(data.sexo) },
+    { label: 'Nome da Mãe',   value: data.mae,         full: true },
+    { label: 'Nome do Pai',   value: data.pai,         full: !data.mae },
+    { label: 'E-mail',        value: data.email },
+    { label: 'Telefone',      value: _cpfFmtTel(data.telefone) },
+    { label: 'Endereço',      value: data.endereco,    full: true },
+    { label: 'Cidade / UF',   value: [data.cidade, data.uf].filter(Boolean).join(' / ') },
+    { label: 'CEP',           value: _cpfFmtCEP(data.cep) },
+    { label: 'Renda Estimada',value: data.renda },
+    { label: 'Óbito',         value: isObito ? '⚠ Sim' : (data.obito ? 'Não' : ''), cls: isObito ? 'red' : '' },
+  ].filter(f => f.value && f.value.trim() && f.value !== '—');
+
+  const grid = document.getElementById('cpfDataGrid');
+  grid.innerHTML = fields.map(f =>
+    `<div class="cpf-field${f.full ? ' full' : ''}">
+       <div class="cpf-field-label">${f.label}</div>
+       <div class="cpf-field-value ${f.cls || ''}">${escH(f.value)}</div>
+     </div>`
+  ).join('');
+
+  /* Garante número par de filhos para a grid 2col ficar alinhada */
+  const normalFields = fields.filter(f => !f.full).length;
+  if (normalFields % 2 !== 0 && !fields[fields.length-1].full) {
+    grid.innerHTML += `<div class="cpf-field" style="background:transparent;border:none"></div>`;
+  }
+
+  document.getElementById('cpfResultCard').style.display = 'block';
+}
+
+/* ── Formatação auxiliar ── */
+function _cpfFmtData(v) {
+  if (!v) return '';
+  /* converte YYYYMMDD ou YYYY-MM-DD para DD/MM/YYYY */
+  const m = v.replace(/\D/g,'');
+  if (m.length === 8) return `${m.slice(6,8)}/${m.slice(4,6)}/${m.slice(0,4)}`;
+  return v;
+}
+function _cpfFmtSexo(v) {
+  if (!v) return '';
+  const s = v.toLowerCase();
+  if (s === 'm' || s === 'masculino' || s === 'male')   return '♂ Masculino';
+  if (s === 'f' || s === 'feminino'  || s === 'female') return '♀ Feminino';
+  return v;
+}
+function _cpfFmtTel(v) {
+  if (!v) return '';
+  const n = v.replace(/\D/g,'');
+  if (n.length === 11) return `(${n.slice(0,2)}) ${n.slice(2,7)}-${n.slice(7)}`;
+  if (n.length === 10) return `(${n.slice(0,2)}) ${n.slice(2,6)}-${n.slice(6)}`;
+  return v;
+}
+function _cpfFmtCEP(v) {
+  if (!v) return '';
+  const n = v.replace(/\D/g,'');
+  if (n.length === 8) return `${n.slice(0,5)}-${n.slice(5)}`;
+  return v;
+}
+
+/* ── Limpar ── */
+function cpfLimpar() {
+  document.getElementById('cpfInput').value      = '';
+  document.getElementById('cpfInput').className  = 'cpf-single-input';
+  document.getElementById('cpfBatchInput').value = '';
+  document.getElementById('cpfValidBadge').style.display = 'none';
+  document.getElementById('cpfClearBtn').style.display   = 'none';
+  document.getElementById('cpfResultCard').style.display  = 'none';
+  document.getElementById('cpfStatsBar').style.display    = 'none';
+  document.getElementById('cpfBatchResults').style.display = 'none';
+  document.getElementById('cpfExportBar').style.display   = 'none';
+  document.getElementById('cpfProgressWrap').classList.remove('visible');
+  document.getElementById('cpfProgressText').classList.remove('visible');
+  document.getElementById('cpfErrorBanner').classList.remove('visible');
+  document.getElementById('cpfSearchBtn').disabled = true;
+  _cpfBatchData  = [];
+  _cpfLastResult = null;
+  ['cpfTotalVal','cpfFoundVal','cpfMissVal'].forEach(id => document.getElementById(id).textContent = '0');
+  cpfBatchCount();
+}
+
+/* ── Consulta principal ── */
+async function consultarCPF() {
+  if (_cpfMode === 'single') {
+    await _cpfConsultarSingle();
+  } else {
+    await _cpfConsultarLote();
+  }
+}
+
+async function _cpfConsultarSingle() {
+  const cpf = _cpfStrip(document.getElementById('cpfInput').value);
+  if (!_cpfIsValid(cpf)) return;
+
+  const btn = document.getElementById('cpfSearchBtn');
+  btn.disabled = true;
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spin" style="width:15px;height:15px"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Consultando…`;
+
+  document.getElementById('cpfResultCard').style.display = 'none';
+  document.getElementById('cpfErrorBanner').classList.remove('visible');
+
+  try {
+    const data = await _cpfFetch(cpf);
+    _cpfLogDebug(data._raw || data, cpf);
+
+    if (data._offline && !data.nome) {
+      /* Nenhuma API retornou dados */
+      document.getElementById('cpfErrorBanner').textContent =
+        '⚠ Nenhuma API retornou dados para este CPF. O CPF é válido matematicamente, mas não foi encontrado nas bases consultadas.';
+      document.getElementById('cpfErrorBanner').classList.add('visible');
+      /* Renderiza card offline de qualquer forma */
+      _cpfRenderCard({ ...data, situacao: 'CPF válido (não encontrado nas APIs)' });
+    } else {
+      _cpfRenderCard(data);
+    }
+  } catch(e) {
+    document.getElementById('cpfErrorBanner').textContent = '✗ Erro ao consultar: ' + e.message;
+    document.getElementById('cpfErrorBanner').classList.add('visible');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> Consultar`;
+}
+
+async function _cpfConsultarLote() {
+  const cpfs = _cpfParseBatch(document.getElementById('cpfBatchInput').value);
+  if (!cpfs.length) return;
+
+  const btn = document.getElementById('cpfSearchBtn');
+  btn.disabled = true;
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spin" style="width:15px;height:15px"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Consultando…`;
+
+  document.getElementById('cpfResultCard').style.display   = 'none';
+  document.getElementById('cpfStatsBar').style.display     = 'flex';
+  document.getElementById('cpfBatchResults').style.display = 'block';
+  document.getElementById('cpfExportBar').style.display    = 'none';
+  document.getElementById('cpfProgressWrap').classList.add('visible');
+  document.getElementById('cpfProgressText').classList.add('visible');
+  document.getElementById('cpfErrorBanner').classList.remove('visible');
+  _cpfBatchFiltro = 'all';
+  document.querySelectorAll('#cpfBatchResults .filter-tab').forEach((t,i) => t.classList.toggle('active', i===0));
+
+  _cpfBatchData = cpfs.map(cpf => ({ cpf, status: 'pending', data: null }));
+  ['cpfTotalVal','cpfFoundVal','cpfMissVal'].forEach(id => document.getElementById(id).textContent = '0');
+  document.getElementById('cpfTotalVal').textContent = cpfs.length;
+  _cpfBatchRender();
+
+  let found = 0, miss = 0;
+  const LOTE = 3; /* menor para não sobrecarregar as APIs */
+
+  for (let i = 0; i < _cpfBatchData.length; i += LOTE) {
+    const lote = _cpfBatchData.slice(i, i + LOTE);
+    await Promise.all(lote.map(async item => {
+      try {
+        const data = await _cpfFetch(item.cpf);
+        if (data && data.nome) {
+          item.status = 'found'; item.data = data; found++;
+        } else if (data && data._offline) {
+          item.status = 'offline'; item.data = data;
+        } else {
+          item.status = 'miss'; miss++;
+        }
+      } catch(_) { item.status = 'miss'; miss++; }
+    }));
+
+    const done = i + lote.length;
+    const pct  = Math.round((done / cpfs.length) * 100);
+    document.getElementById('cpfProgressBar').style.width  = pct + '%';
+    document.getElementById('cpfProgressText').textContent = `Consultando ${done} de ${cpfs.length} (${pct}%)`;
+    document.getElementById('cpfFoundVal').textContent = found;
+    document.getElementById('cpfMissVal').textContent  = miss;
+    _cpfBatchRender();
+
+    if (i + LOTE < _cpfBatchData.length) await new Promise(r => setTimeout(r, 400));
+  }
+
+  document.getElementById('cpfProgressText').textContent = `✓ Concluído — ${cpfs.length} CPF(s) processados`;
+  document.getElementById('cpfExportBar').style.display = found > 0 ? 'flex' : 'none';
+
+  btn.disabled = false;
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> Consultar`;
+}
+
+/* ── Render da tabela lote ── */
+function cpfBatchSetFiltro(f, btn) {
+  _cpfBatchFiltro = f;
+  document.querySelectorAll('#cpfBatchResults .filter-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  _cpfBatchRender();
+}
+
+function _cpfBatchRender() {
+  const list = document.getElementById('cpfBatchList');
+  let data = _cpfBatchData;
+  if (_cpfBatchFiltro === 'found')  data = data.filter(r => r.status === 'found' || r.status === 'offline');
+  if (_cpfBatchFiltro === 'miss')   data = data.filter(r => r.status === 'miss');
+
+  if (!data.length) {
+    list.innerHTML = '<div class="empty-state"><p>Nenhum resultado para este filtro.</p></div>';
+    return;
+  }
+
+  list.innerHTML = data.map((item, idx) => {
+    const cpfFmt = _cpfFormat(item.cpf);
+    const allIdx = _cpfBatchData.indexOf(item);
+
+    if (item.status === 'pending') {
+      return `<div class="result-item" style="grid-template-columns:28px 1fr 160px 90px;animation-delay:${Math.min(idx*8,160)}ms">
+        <span class="result-idx">${allIdx+1}</span>
+        <span style="font-family:var(--mono);font-size:13px;grid-column:2/5;display:flex;align-items:center;gap:8px;color:var(--muted)">
+          <strong style="color:var(--text)">${escH(cpfFmt)}</strong>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin" style="width:13px;height:13px;flex-shrink:0"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+          <span style="font-size:11px">consultando…</span>
+        </span>
+      </div>`;
+    }
+
+    if (item.status === 'miss') {
+      return `<div class="result-item" style="grid-template-columns:28px 1fr 160px 90px;animation-delay:${Math.min(idx*8,160)}ms">
+        <span class="result-idx">${allIdx+1}</span>
+        <span style="font-family:var(--mono);font-size:13px"><strong style="color:var(--muted)">${escH(cpfFmt)}</strong></span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">—</span>
+        <span class="result-badge badge-invalid">✕ Não encontrado</span>
+      </div>`;
+    }
+
+    const d = item.data || {};
+    const nome     = d.nome       || '—';
+    const nasc     = _cpfFmtData(d.nascimento) || '—';
+    const sexo     = _cpfFmtSexo(d.sexo) || '—';
+    const isObito  = /sim|yes|true|1|falecido|morto/i.test(d.obito || '');
+    const isOffline = item.status === 'offline';
+
+    return `<div class="result-item" style="grid-template-columns:28px 1fr 160px 90px;animation-delay:${Math.min(idx*8,160)}ms;cursor:pointer" onclick="_cpfBatchVerDetalhe(${allIdx})">
+      <span class="result-idx">${allIdx+1}</span>
+      <span style="font-family:var(--mono);font-size:12px;line-height:1.6;overflow:hidden">
+        <strong style="color:var(--text);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escH(nome)}</strong>
+        <span style="color:var(--muted);font-size:11px">${escH(cpfFmt)}</span>
+      </span>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${escH(nasc)} · ${escH(sexo)}</span>
+      ${isObito
+        ? `<span class="result-badge badge-banned">✕ Óbito</span>`
+        : isOffline
+        ? `<span class="result-badge badge-checking">○ Local</span>`
+        : `<span class="result-badge badge-active"><span class="pulse"></span>OK</span>`}
+    </div>`;
+  }).join('');
+}
+
+function _cpfBatchVerDetalhe(idx) {
+  const item = _cpfBatchData[idx];
+  if (!item || !item.data || item.status === 'miss') return;
+  /* Troca para modo single e exibe card */
+  cpfSetMode('single', document.getElementById('cpfModeSingle'));
+  document.getElementById('cpfInput').value = _cpfFormat(item.cpf);
+  cpfMaskInput(document.getElementById('cpfInput'));
+  _cpfRenderCard(item.data);
+  document.getElementById('panel-cpf').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+/* ── Copiar / Exportar ── */
+function cpfCopiarDados() {
+  if (!_cpfLastResult) return;
+  const d = _cpfLastResult;
+  const lines = [
+    `CPF: ${_cpfFormat(d.cpf)}`,
+    d.nome       ? `Nome: ${d.nome}`              : '',
+    d.nascimento ? `Nascimento: ${_cpfFmtData(d.nascimento)}` : '',
+    d.sexo       ? `Sexo: ${_cpfFmtSexo(d.sexo)}` : '',
+    d.mae        ? `Mãe: ${d.mae}`                : '',
+    d.pai        ? `Pai: ${d.pai}`                : '',
+    d.situacao   ? `Situação: ${d.situacao}`      : '',
+    d.email      ? `E-mail: ${d.email}`           : '',
+    d.telefone   ? `Telefone: ${_cpfFmtTel(d.telefone)}` : '',
+    d.endereco   ? `Endereço: ${d.endereco}`      : '',
+    d.cidade     ? `Cidade: ${d.cidade}`          : '',
+    d.uf         ? `UF: ${d.uf}`                  : '',
+    d.cep        ? `CEP: ${_cpfFmtCEP(d.cep)}`   : '',
+    d.renda      ? `Renda: ${d.renda}`            : '',
+  ].filter(Boolean).join('\n');
+
+  navigator.clipboard.writeText(lines).then(() => {
+    const btn = document.querySelector('#cpfResultCard .cpf-card-actions .btn');
+    if (!btn) return;
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M20 6L9 17l-5-5"/></svg> Copiado!';
+    setTimeout(() => { btn.innerHTML = orig; }, 2500);
+  });
+}
+
+function cpfExportarTXT() {
+  if (!_cpfLastResult) return;
+  const d = _cpfLastResult;
+  const txt = [
+    '=== CONSULTA CPF — Hadmage ===',
+    `CPF: ${_cpfFormat(d.cpf)}`,
+    d.nome       ? `Nome: ${d.nome}`              : '',
+    d.nascimento ? `Nascimento: ${_cpfFmtData(d.nascimento)}` : '',
+    d.sexo       ? `Sexo: ${_cpfFmtSexo(d.sexo)}` : '',
+    d.mae        ? `Mãe: ${d.mae}`                : '',
+    d.pai        ? `Pai: ${d.pai}`                : '',
+    d.situacao   ? `Situação: ${d.situacao}`      : '',
+    d.email      ? `E-mail: ${d.email}`           : '',
+    d.telefone   ? `Telefone: ${_cpfFmtTel(d.telefone)}` : '',
+    d.endereco   ? `Endereço: ${d.endereco}`      : '',
+    [d.cidade, d.uf].filter(Boolean).length ? `Cidade/UF: ${[d.cidade,d.uf].filter(Boolean).join(' / ')}` : '',
+    d.cep        ? `CEP: ${_cpfFmtCEP(d.cep)}`   : '',
+    d.renda      ? `Renda Estimada: ${d.renda}`   : '',
+    '',
+    `Gerado em: ${new Date().toLocaleString('pt-BR')}`,
+  ].filter(l => l !== null).join('\n');
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([txt], { type:'text/plain;charset=utf-8' }));
+  a.download = `cpf_${_cpfStrip(d.cpf)}.txt`;
+  a.click();
+}
+
+function cpfExportCSV() {
+  const found = _cpfBatchData.filter(r => r.status === 'found' || r.status === 'offline');
+  if (!found.length) return;
+  const headers = ['CPF','Nome','Nascimento','Sexo','Mae','Pai','Situacao','Email','Telefone','Endereco','Cidade','UF','CEP','Renda'];
+  const rows = found.map(r => {
+    const d = r.data || {};
+    return [
+      _cpfFormat(r.cpf), d.nome||'', _cpfFmtData(d.nascimento)||'', _cpfFmtSexo(d.sexo)||'',
+      d.mae||'', d.pai||'', d.situacao||'', d.email||'',
+      _cpfFmtTel(d.telefone)||'', d.endereco||'', d.cidade||'', d.uf||'',
+      _cpfFmtCEP(d.cep)||'', d.renda||''
+    ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(',');
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([[headers.join(','), ...rows].join('\n')], { type:'text/csv;charset=utf-8' }));
+  a.download = 'cpf_lote.csv';
+  a.click();
+}
+
+function cpfCopiarLote() {
+  const found = _cpfBatchData.filter(r => r.status === 'found').map(r => _cpfFormat(r.cpf));
+  if (!found.length) return;
+  navigator.clipboard.writeText(found.join('\n')).then(() => {
+    const btn = document.getElementById('cpfCopyBatchBtn');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M20 6L9 17l-5-5"/></svg> Copiado!';
+    setTimeout(() => { btn.innerHTML = orig; }, 2500);
+  });
+}
+
+/* ── Init ── */
+(function _initCPF() {
+  const inp = document.getElementById('cpfInput');
+  if (!inp) return;
+  inp.addEventListener('input', () => {});  /* cpfMaskInput já trata via oninput */
+})();
 
 </script>
