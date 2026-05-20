@@ -4520,23 +4520,50 @@ async function _cpfFetch(cpf) {
 function _cpfNormalize(raw, cpf) {
   if (!raw || typeof raw !== 'object') return null;
 
-  /* Desembrulha wrappers comuns: {data:[...]}, {result:{...}}, etc. */
+  /* ── Desembrulha wrappers conhecidos (ordem: mais específico → mais genérico) ──
+     Cobre: { resultado: { dados: {...}, emails:[], telefones:[], enderecos:[] } }
+            { data: {...} }, { result: {...} }, { dados: {...} }, etc. */
   let obj = raw;
-  const unwrap = raw.data ?? raw.result ?? raw.results ?? raw.response ?? raw.retorno ?? raw.payload ?? raw.dados;
-  if (unwrap) obj = Array.isArray(unwrap) ? (unwrap[0] ?? raw) : unwrap;
+  let ctx = raw; /* contexto raiz — guarda arrays irmãos como emails/telefones/enderecos */
+
+  /* Nível 1: resultado (estrutura hadmage-backend) */
+  if (raw.resultado && typeof raw.resultado === 'object') {
+    ctx = raw.resultado;
+    const d = raw.resultado.dados ?? raw.resultado.data ?? raw.resultado;
+    obj = (d && typeof d === 'object' && !Array.isArray(d)) ? d : raw.resultado;
+  } else {
+    /* Wrappers genéricos */
+    const unwrap = raw.data ?? raw.result ?? raw.results ?? raw.response ?? raw.retorno ?? raw.payload ?? raw.dados;
+    if (unwrap) {
+      obj = Array.isArray(unwrap) ? (unwrap[0] ?? raw) : unwrap;
+      ctx = raw;
+    }
+  }
   if (Array.isArray(obj)) obj = obj[0] ?? raw;
   if (!obj || typeof obj !== 'object') return null;
   if (obj.error || obj.erro) return null;
 
-  /* Helper: busca campo por nome case-insensitive em obj raiz e em sub-objetos de 1 nível */
+  /* ── Extrai primeiro item útil de um array de objetos ──
+     Usado para emails[], telefones[], enderecos[] no padrão hadmage-backend */
+  const fromArr = (arrKey, ...fields) => {
+    const arr = ctx[arrKey] ?? raw[arrKey];
+    if (!Array.isArray(arr) || !arr.length) return '';
+    for (const item of arr) {
+      for (const f of fields) {
+        const k = Object.keys(item).find(ik => ik.toLowerCase() === f.toLowerCase());
+        if (k && item[k] && String(item[k]).trim()) return String(item[k]).trim();
+      }
+    }
+    return '';
+  };
+
+  /* ── Helper: busca campo case-insensitive em obj + sub-objetos 1 nível ── */
   const g = (...keys) => {
     for (const k of keys) {
-      /* busca direta */
       const found = Object.keys(obj).find(ok => ok.toLowerCase() === k.toLowerCase());
       if (found && obj[found] !== null && obj[found] !== undefined && String(obj[found]).trim() && String(obj[found]).trim() !== '0') {
         return String(obj[found]).trim();
       }
-      /* busca em sub-objetos de 1 nível */
       for (const subKey of Object.keys(obj)) {
         const sub = obj[subKey];
         if (sub && typeof sub === 'object' && !Array.isArray(sub)) {
@@ -4550,42 +4577,54 @@ function _cpfNormalize(raw, cpf) {
     return '';
   };
 
-  /* ── Mapeamento exaustivo de campos (cobre usuarioconsulta.store + todas APIs conhecidas) ── */
-  const nome       = g('nome','name','NOME','nome_completo','full_name','NomeCompleto','NM_PESSOA','nm_pessoa','titular','razao_social','NM_CONTRIBUINTE');
-  const nascimento = g('nascimento','data_nascimento','birthday','birth_date','nascto','dt_nascimento','NASCIMENTO','DT_NASC','DataNascimento','datanascimento','data_nasc','DATANASCIMENTO','nascimento_dt','DT_NASCIMENTO');
-  const sexo       = g('sexo','genero','gender','sex','SEXO','CD_SEXO','SexoDescricao','DS_SEXO','tp_sexo');
-  const mae        = g('mae','nome_mae','mother','nome_da_mae','MAE','NM_MAE','NomeMae','NOME_MAE','nm_mae','nome_da_mae_titular');
-  const pai        = g('pai','nome_pai','father','nome_do_pai','PAI','NM_PAI','NomePai','NOME_PAI','nm_pai');
-  const situacao   = g('situacao','status','situacao_cpf','STATUS','SITUACAO','SituacaoCpf','ds_situacao','CD_SITUACAO','SituacaoReceita','situacao_receita');
-  const email      = g('email','EMAIL','e_mail','e-mail','EMAIL_1','email1','ds_email');
-  const tel1       = g('telefone','fone','phone','TELEFONE','celular','TEL','tel1','telefone1','fone1','NR_FONE','nr_fone','CELULAR','NR_CELULAR');
-  const tel2       = g('telefone2','fone2','phone2','TELEFONE2','celular2','TEL2','tel_2');
-  const telefone   = [tel1, tel2].filter(Boolean).join(' / ');
-
-  /* Endereço — tenta campo composto primeiro, depois monta dos fragmentos */
-  const endComp    = g('endereco','logradouro','address','ENDERECO','rua','LOGRADOURO','DS_LOGRADOURO','NM_LOGRADOURO','nm_logradouro','logradouro_completo');
-  const numEnd     = g('numero','número','num','NR_LOGRADOURO','nr_logradouro','numero_logradouro');
-  const compl      = g('complemento','COMPLEMENTO','DS_COMPLEMENTO');
-  const bairro     = g('bairro','district','neighborhood','BAIRRO','DS_BAIRRO','nm_bairro','NM_BAIRRO');
-  const cidade     = g('cidade','municipio','city','CIDADE','localidade','MUNICIPIO','NM_MUNICIPIO','nm_municipio','nm_cidade','NM_CIDADE','MunicipioNascimento');
-  const uf         = g('uf','estado','state','UF','ESTADO','CD_UF','sg_uf','SG_UF','uf_nascimento','UF_NASCIMENTO');
-  const cep        = g('cep','CEP','zip','postal_code','CD_CEP','nr_cep','NR_CEP','CEP_LOGRADOURO');
-  const renda      = g('renda','renda_estimada','income','RENDA','VL_RENDA','vl_renda','salario','SALARIO','faixa_renda','FAIXA_RENDA','rendimento');
-  const obito      = g('obito','falecido','deceased','OBITO','morte','MORTE','ind_obito','IND_OBITO','fl_obito','FL_OBITO','DT_OBITO','situacao_obito');
-  const escolaridade = g('escolaridade','education','grau_instrucao','ESCOLARIDADE','DS_GRAU_INSTRUCAO','grau_instrucao','GRAU_INSTRUCAO');
-  const pis        = g('pis','PIS','NIS','nis','PASEP','pasep','NR_PIS','nr_pis');
-  const tituloEleitor = g('titulo_eleitor','titulo','TITULO','NR_TITULO','nr_titulo','titulo_eleitor_numero','TituloEleitor');
-  const rg         = g('rg','RG','identidade','IDENTIDADE','NR_RG','nr_rg','registro_geral');
+  /* ── Mapeamento de campos ── */
+  const nome       = g('nome','NOME','name','nome_completo','full_name','NomeCompleto','NM_PESSOA','nm_pessoa','titular','NM_CONTRIBUINTE');
+  const nascimento = g('nasc','nascimento','NASC','NASCIMENTO','data_nascimento','birthday','birth_date','nascto','dt_nascimento','DT_NASC','DataNascimento','data_nasc','DT_NASCIMENTO');
+  const sexo       = g('sexo','SEXO','genero','gender','sex','CD_SEXO','SexoDescricao','DS_SEXO','tp_sexo');
+  const mae        = g('nome_mae','NOME_MAE','mae','MAE','mother','NM_MAE','NomeMae','nm_mae');
+  const pai        = g('nome_pai','NOME_PAI','pai','PAI','father','NM_PAI','NomePai','nm_pai');
+  const situacao   = g('situacao','SITUACAO','status','STATUS','situacao_cpf','SituacaoCpf','ds_situacao','CD_SITUACAO','SituacaoReceita');
+  const renda      = g('renda','RENDA','renda_estimada','income','VL_RENDA','vl_renda','faixa_renda','FAIXA_RENDA','rendimento');
   const rendaFaixa = g('faixa_renda_descricao','faixa_renda_desc','FX_RENDA','FaixaRenda');
+  const obito      = g('obito','OBITO','falecido','deceased','morte','MORTE','ind_obito','IND_OBITO','fl_obito','DT_OBITO');
+  const escolaridade = g('escolaridade','ESCOLARIDADE','education','grau_instrucao','DS_GRAU_INSTRUCAO','GRAU_INSTRUCAO');
+  const pis        = g('pis','PIS','NIS','nis','PASEP','pasep','NR_PIS','nr_pis');
+  const tituloEleitor = g('titulo_eleitor','TITULO_ELEITOR','titulo','TITULO','NR_TITULO','nr_titulo','TituloEleitor');
+  const rg         = g('rg','RG','identidade','IDENTIDADE','NR_RG','nr_rg','registro_geral');
+
+  /* Email: tenta campo direto, depois array emails[] */
+  const email = g('email','EMAIL','e_mail','e-mail','EMAIL_1','email1','ds_email')
+             || fromArr('emails','EMAIL','email','ENDERECO','endereco','address');
+
+  /* Telefone: tenta campo direto, depois array telefones[] */
+  const tel1 = g('telefone','TELEFONE','fone','phone','celular','CELULAR','TEL','tel1','telefone1','NR_FONE','NR_CELULAR')
+            || fromArr('telefones','TELEFONE','telefone','NUMERO','numero','number','NR_FONE');
+  const tel2 = g('telefone2','TELEFONE2','fone2','phone2','celular2','TEL2','tel_2');
+  const telefone = [tel1, tel2].filter(Boolean).join(' / ');
+
+  /* Endereço: tenta campos diretos, depois array enderecos[] */
+  const endComp = g('endereco','ENDERECO','logradouro','LOGRADOURO','address','rua','DS_LOGRADOURO','NM_LOGRADOURO','nm_logradouro')
+               || fromArr('enderecos','LOGRADOURO','logradouro','ENDERECO','endereco','address','TIPO_LOGRADOURO');
+  const numEnd  = g('numero','NUMERO','número','num','NR_LOGRADOURO','nr_logradouro','numero_logradouro')
+               || fromArr('enderecos','NUMERO','numero','NR_LOGRADOURO','number');
+  const compl   = g('complemento','COMPLEMENTO','DS_COMPLEMENTO')
+               || fromArr('enderecos','COMPLEMENTO','complemento');
+  const bairro  = g('bairro','BAIRRO','district','neighborhood','DS_BAIRRO','nm_bairro','NM_BAIRRO')
+               || fromArr('enderecos','BAIRRO','bairro','district');
+  const cidade  = g('cidade','CIDADE','municipio','MUNICIPIO','city','localidade','NM_MUNICIPIO','nm_municipio','NM_CIDADE')
+               || fromArr('enderecos','CIDADE','cidade','MUNICIPIO','municipio','city');
+  const uf      = g('uf','UF','estado','ESTADO','state','CD_UF','sg_uf','SG_UF')
+               || fromArr('enderecos','UF','uf','ESTADO','estado','state','SG_UF');
+  const cep     = g('cep','CEP','zip','postal_code','CD_CEP','nr_cep','NR_CEP','CEP_LOGRADOURO')
+               || fromArr('enderecos','CEP','cep','zip','CD_CEP');
 
   /* Monta endereço legível */
   const endParts = [endComp, numEnd, compl, bairro].filter(Boolean);
   const endereco = endParts.length ? endParts.join(', ') : '';
 
-  /* Se não veio nenhum campo útil além do CPF, descarta para não poluir com objeto vazio.
-     Mas se veio ao menos situação ou qualquer outro campo, aproveita o que a API retornou. */
-  const temAlgumDado = nome || nascimento || sexo || mae || pai || situacao || email || telefone || endereco || cidade || uf || cep || renda;
-  if (!temAlgumDado) return null;
+  /* Rejeita se não veio absolutamente nenhum campo útil */
+  const temDado = nome || nascimento || sexo || mae || pai || situacao || email || telefone || endereco || cidade || uf || cep || renda;
+  if (!temDado) return null;
 
   return {
     cpf,
@@ -4595,8 +4634,7 @@ function _cpfNormalize(raw, cpf) {
     renda: rendaFaixa || renda,
     obito, escolaridade, pis, rg, tituloEleitor,
     _raw: obj,
-    /* Marca como parcial quando veio sem nome mas com outros dados */
-    _parcial: !nome && !!temAlgumDado,
+    _parcial: !nome && !!temDado,
   };
 }
 
@@ -4641,15 +4679,10 @@ function _cpfRenderCard(data) {
   const fonteBadge = document.getElementById('cpfFonteBadge');
   if (fonteBadge) {
     const isOffline = data._offline;
-    const isParcial = data._parcial;
     const src = data._raw?._fonte || '';
-    if (isOffline) {
-      fonteBadge.innerHTML = `<span style="font-family:var(--mono);font-size:9px;color:var(--yellow);background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:4px;padding:2px 8px;letter-spacing:.05em">⚡ Validação local</span>`;
-    } else if (isParcial) {
-      fonteBadge.innerHTML = `<span style="font-family:var(--mono);font-size:9px;color:var(--yellow);background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:4px;padding:2px 8px;letter-spacing:.05em">⚠ Dados parciais — API sem cadastro completo</span>`;
-    } else {
-      fonteBadge.innerHTML = `<span style="font-family:var(--mono);font-size:9px;color:var(--cyan);background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.25);border-radius:4px;padding:2px 8px;letter-spacing:.05em">✓ usuarioconsulta.store</span>`;
-    }
+    fonteBadge.innerHTML = isOffline
+      ? `<span style="font-family:var(--mono);font-size:9px;color:var(--yellow);background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:4px;padding:2px 8px;letter-spacing:.05em">⚡ Validação local</span>`
+      : `<span style="font-family:var(--mono);font-size:9px;color:var(--cyan);background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.25);border-radius:4px;padding:2px 8px;letter-spacing:.05em">✓ usuarioconsulta.store</span>`;
   }
 
   const badge = document.getElementById('cpfStatusBadge');
@@ -4662,9 +4695,6 @@ function _cpfRenderCard(data) {
   } else if (data._offline) {
     badge.className = 'result-badge badge-checking';
     badge.innerHTML = '○ Validado localmente';
-  } else if (data._parcial) {
-    badge.className = 'result-badge badge-checking';
-    badge.innerHTML = `○ ${situacao || 'Sem cadastro'}`;
   } else {
     badge.className = 'result-badge badge-active';
     badge.innerHTML = '<span class="pulse"></span> Regular';
