@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Hadmage — Painel de Consulta v4</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -30,7 +30,7 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { background: #0a0a0a !important; }
-  body { background: #0a0a0a !important; color: var(--text); font-family: var(--sans); min-height: 100vh; overflow-x: hidden; }
+  body { background: #0a0a0a !important; color: var(--text); font-family: var(--sans); min-height: 100vh; overflow-x: clip; }
   body::after { content: '秘'; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: clamp(80px,15vw,200px); color: rgba(255,255,255,0.04); font-family: serif; pointer-events: none; z-index: 0; line-height: 1; user-select: none; font-weight: 900; transition: color 0.6s ease; }
   body.logged-in::after { color: rgba(255,255,255,0.10); }
   body::before { display: none; }
@@ -441,7 +441,7 @@
   @media (max-width: 640px) {
     /* Layout geral */
     .container { padding: 20px 14px 56px; }
-    body::after { font-size: 220px; }
+    body::after { font-size: clamp(60px,30vw,140px); opacity: 0.5; }
 
     /* Header */
     header { gap: 8px; margin-bottom: 24px; }
@@ -451,10 +451,10 @@
     .header-text p  { font-size: 10px; }
     .header-status  { top: 0; right: 0; }
 
-    /* Tabs — só ícone no mobile */
-    .tab-nav { padding: 5px; gap: 3px; border-radius: 10px; overflow-x: auto; flex-wrap: nowrap; }
-    .tab-btn { padding: 9px 10px; border-radius: 7px; font-size: 12px; gap: 5px; flex-shrink: 0; }
-    .tab-btn span { display: none; }
+    /* Tabs — scroll horizontal com texto */
+    .tab-nav { padding: 5px; gap: 3px; border-radius: 10px; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
+    .tab-btn { padding: 8px 12px; border-radius: 7px; font-size: 11px; gap: 5px; flex-shrink: 0; flex: 0 0 auto; }
+    .tab-btn span { display: inline; font-size: 11px; }
 
     /* Input */
     .input-section { padding: 18px 16px; border-radius: 12px; }
@@ -463,9 +463,7 @@
 
     /* Botões */
     .controls { flex-direction: column; gap: 8px; }
-    .btn { width: 100%; justify-content: center; font-size: 13px; padding: 11px 16px; }
-    /* Exceção: botões dentro do gmail-btn-row NÃO devem ser 100% */
-    .gmail-btn-row .btn { width: auto; }
+    .controls .btn, .cpf-card-actions .btn { width: 100%; justify-content: center; font-size: 13px; padding: 11px 16px; }
 
     /* Stats */
     .stats-bar { flex-wrap: wrap; gap: 8px; }
