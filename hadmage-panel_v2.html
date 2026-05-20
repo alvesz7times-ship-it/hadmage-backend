@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hadmage — Painel de Consulta</title>
+<title>Hadmage — Painel de Consulta v4</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -59,8 +59,9 @@
   .conn-dot.disconnected { background: var(--red); box-shadow: 0 0 6px var(--red); }
   .conn-dot.connecting   { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); animation: pulse 0.8s ease-in-out infinite; }
   .conn-status { color: var(--muted); font-weight: 700; font-size: 11px; }
-  .tab-nav { display: flex; gap: 4px; margin-bottom: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 6px; animation: fadeUp 0.5s 0.05s ease both; }
-  .tab-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 18px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--muted); font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.22s; letter-spacing: 0.01em; white-space: nowrap; }
+  .tab-nav { display: flex; gap: 4px; margin-bottom: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 6px; animation: fadeUp 0.5s 0.05s ease both; overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; }
+  .tab-nav::-webkit-scrollbar { display: none; }
+  .tab-btn { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 18px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--muted); font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.22s; letter-spacing: 0.01em; white-space: nowrap; }
   .tab-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
   .tab-btn:hover { color: var(--text); background: var(--surface2); }
   .tab-btn.active { background: var(--surface2); border-color: var(--accent-dim); color: #eeeeee; box-shadow: 0 0 0 1px var(--accent-dim), 0 0 12px var(--accent-glow); }
@@ -244,7 +245,7 @@
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 8px;
-    color: #111111;
+    color: var(--text);
     font-family: var(--mono);
     font-size: 13px;
     padding: 9px 14px;
@@ -399,7 +400,7 @@
   .gmail-field-subject {
     font-size: 16px;
     font-weight: 700;
-    color: #111111;
+    color: var(--text);
     margin-bottom: 16px;
   }
   .gmail-body-content {
@@ -1199,6 +1200,117 @@
     }
     .cpf-card-actions .btn { width: 100%; justify-content: center; }
   }
+
+  /* ══════════════════════════════════════════════
+     REVISÃO GERAL — FIXES RESPONSIVOS v4
+  ══════════════════════════════════════════════ */
+
+  /* ── PC: tabs com scroll suave quando estreitas ── */
+  @media (min-width: 641px) and (max-width: 980px) {
+    .tab-btn { padding: 10px 12px; font-size: 12px; gap: 6px; }
+    .tab-btn span { font-size: 11px; }
+    .container { padding: 36px 20px 72px; }
+  }
+
+  /* ── Header: evita sobreposição do top-bar com o logo em telas médias ── */
+  @media (max-width: 780px) {
+    header { padding-top: 52px; }
+    .header-top-bar { flex-wrap: nowrap; gap: 6px; }
+    .header-top-right { gap: 5px; flex-wrap: nowrap; }
+    .admin-users-btn span,
+    .logout-btn span { display: none; }
+    .admin-users-btn,
+    .logout-btn { padding: 6px 10px; gap: 0; }
+  }
+
+  /* ── Profile Dock: evita saída da tela em mobile ── */
+  @media (max-width: 480px) {
+    #profileDock  { bottom: 14px; left: 14px; right: 14px; }
+    #profilePanel { left: 14px; right: 14px; width: auto; bottom: 66px; }
+    .profile-dock-btn { width: 100%; justify-content: center; }
+  }
+
+  /* ── Stat pills: 2 colunas em mobile médio ── */
+  @media (max-width: 640px) {
+    .stats-bar { flex-wrap: wrap; }
+    .stat-pill  { flex: 1 1 calc(50% - 6px); min-width: calc(50% - 6px); }
+  }
+  @media (max-width: 360px) {
+    .stat-pill { flex: 1 1 100%; }
+  }
+
+  /* ── Results header: evita quebra feia ── */
+  .results-header { flex-wrap: wrap; gap: 8px; }
+
+  /* ── Datora user view: search+botão empilham no mobile ── */
+  @media (max-width: 480px) {
+    #datora-user-view [style*="display:flex"] { flex-direction: column !important; gap: 8px !important; }
+    #datora-user-view .search-wrap { width: 100% !important; }
+    #userQueryBtn { width: 100% !important; justify-content: center; }
+  }
+
+  /* ── Gmail: botões em tela muito estreita ficam full-width ── */
+  @media (max-width: 400px) {
+    .gmail-controls  { gap: 10px; }
+    .gmail-btn-row   { flex-direction: column; }
+    .gmail-btn-row .btn { width: 100% !important; justify-content: center; }
+    .gmail-addr-row  { gap: 6px; }
+  }
+
+  /* ── CPF input: largura mínima ok em mobile pequeno ── */
+  @media (max-width: 400px) {
+    #cpfInput { font-size: 14px; letter-spacing: 0.04em; }
+  }
+
+  /* ── Modal Gmail: tela pequena = full screen ── */
+  @media (max-width: 480px) {
+    .gmail-modal-overlay { padding: 0; align-items: flex-end; }
+    .gmail-modal-box     { border-radius: 16px 16px 0 0; max-height: 95vh; }
+  }
+
+  /* ── Login box: centralizado e com padding adequado ── */
+  @media (max-width: 400px) {
+    .login-box { padding: 32px 18px; margin: 10px; border-radius: 16px; }
+    .login-kanji { font-size: 44px; }
+    .login-brand  { font-size: 26px; }
+    .login-btn    { font-size: 14px; padding: 12px; }
+  }
+
+  /* ── Users overlay: bottom sheet em mobile ── */
+  @media (max-width: 560px) {
+    #usersOverlay  { padding: 0; align-items: flex-end; }
+    .users-box     { border-radius: 20px 20px 0 0; max-height: 92vh; max-width: 100%; }
+    .users-head    { padding: 18px 20px; }
+    .users-body    { padding: 20px 16px; }
+  }
+
+  /* ── Export bar: empilha botões em mobile ── */
+  @media (max-width: 480px) {
+    .export-bar         { flex-direction: column; gap: 8px; }
+    .export-bar .btn    { width: 100%; justify-content: center; }
+  }
+
+  /* ── Perms overlay: bottom sheet ── */
+  @media (max-width: 640px) {
+    #permsOverlay  { padding: 0; align-items: flex-end; }
+    .perms-box     { border-radius: 20px 20px 0 0; max-height: 94vh; max-width: 100%; }
+  }
+
+  /* ── Dev footer: quebra em mobile ── */
+  @media (max-width: 480px) {
+    .dev-footer { flex-direction: column; gap: 4px; align-items: flex-start; }
+  }
+
+  /* ── Scroll horizontal suave nas tabelas de resultado ── */
+  .results-section { overflow-x: hidden; }
+  @media (max-width: 400px) {
+    .results-col-header,
+    .result-item { padding: 8px 10px !important; }
+  }
+
+  /* ── Garantia: nenhum elemento ultrapassa a largura da tela ── */
+  img, video, iframe, table { max-width: 100%; }
+  * { -webkit-tap-highlight-color: transparent; }
 </style>
 </head>
 <body>
@@ -3601,6 +3713,7 @@ const PERMS_DEF = {
   tab_gmail:   { label: 'Gmail Temp',         desc: 'Acesso à aba de Gmail temporário',                   icon: '📧', short: 'Gmail',     category: 'modulo' },
   tab_meta:    { label: 'Meta / Mídias',      desc: 'Acesso à aba de Meta e redes sociais',               icon: '🛡', short: 'Meta',      category: 'modulo' },
   tab_base:    { label: 'Consultar Base',     desc: 'Acesso à aba de consulta em lote de números na base', icon: '🗄', short: 'Base',      category: 'modulo' },
+  tab_cpf:     { label: 'Consulta CPF',       desc: 'Acesso à aba de consulta de CPF',                    icon: '🪪', short: 'CPF',       category: 'modulo' },
   // Ações
   export_csv:  { label: 'Exportar CSV',       desc: 'Permite exportar resultados em CSV',                 icon: '⬇', short: 'CSV',       category: 'acao' },
   copy_actives:{ label: 'Copiar Ativos',      desc: 'Permite copiar números ativos para a área de transferência', icon: '📋', short: 'Copiar', category: 'acao' },
@@ -3611,15 +3724,15 @@ const PERMS_DEF = {
 // Permissões padrão por cargo
 const PERMS_DEFAULT = {
   admin: {
-    tab_checker: true, tab_datora: true, tab_sms: true, tab_gmail: true, tab_meta: true, tab_base: true,
+    tab_checker: true, tab_datora: true, tab_sms: true, tab_gmail: true, tab_meta: true, tab_base: true, tab_cpf: true,
     export_csv: true, copy_actives: true, load_datora: true, view_gmail: true,
   },
   moderator: {
-    tab_checker: true, tab_datora: true, tab_sms: true, tab_gmail: true, tab_meta: true, tab_base: true,
+    tab_checker: true, tab_datora: true, tab_sms: true, tab_gmail: true, tab_meta: true, tab_base: true, tab_cpf: true,
     export_csv: true, copy_actives: true, load_datora: false, view_gmail: true,
   },
   user: {
-    tab_checker: true, tab_datora: true, tab_sms: true, tab_gmail: true, tab_meta: true, tab_base: true,
+    tab_checker: true, tab_datora: true, tab_sms: true, tab_gmail: true, tab_meta: true, tab_base: true, tab_cpf: true,
     export_csv: false, copy_actives: false, load_datora: false, view_gmail: false,
   }
 };
@@ -3629,8 +3742,16 @@ function carregarTodasPerms() {
     const raw = localStorage.getItem(PERMS_STORAGE_KEY);
     if (!raw) return JSON.parse(JSON.stringify(PERMS_DEFAULT));
     const parsed = JSON.parse(raw);
-    parsed.admin     = Object.assign({}, PERMS_DEFAULT.admin);
+    parsed.admin = Object.assign({}, PERMS_DEFAULT.admin);
     if (!parsed.moderator) parsed.moderator = JSON.parse(JSON.stringify(PERMS_DEFAULT.moderator));
+    // Garante que novas permissões adicionadas ao default não fiquem ausentes
+    ['moderator','user'].forEach(role => {
+      if (parsed[role]) {
+        Object.keys(PERMS_DEFAULT[role]).forEach(k => {
+          if (parsed[role][k] === undefined) parsed[role][k] = PERMS_DEFAULT[role][k];
+        });
+      }
+    });
     return parsed;
   } catch { return JSON.parse(JSON.stringify(PERMS_DEFAULT)); }
 }
@@ -3659,6 +3780,7 @@ function aplicarPermissoes() {
     tab_gmail:   'gmail',
     tab_meta:    'meta',
     tab_base:    'base',
+    tab_cpf:     'cpf',
   };
   document.querySelectorAll('.tab-btn').forEach(btn => {
     const onclick = btn.getAttribute('onclick') || '';
@@ -5200,4 +5322,6 @@ function cpfCopiarLote() {
   inp.addEventListener('input', () => {});  /* cpfMaskInput já trata via oninput */
 })();
 
-</script>
+</script>-e 
+</body>
+</html>
