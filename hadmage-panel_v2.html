@@ -8053,7 +8053,7 @@ function extractObjects(str, limit) {
   while (i < len) {
     const ch = str[i];
     if (esc)           { esc = false;    i++; continue; }
-    if (ch === '\' && inStr) { esc = true; i++; continue; }
+    if (ch === '\\' && inStr) { esc = true; i++; continue; }
     if (ch === '"')    { inStr = !inStr; i++; continue; }
     if (inStr)         {                 i++; continue; }
     if (ch === '{')    { if (depth === 0) start = i; depth++; i++; continue; }
@@ -8076,7 +8076,7 @@ function extractObjects(str, limit) {
 }
 
 function detectFormat(text) {
-  const s = text.replace(/^﻿/, '').trimStart();
+  const s = text.replace(/^\uFEFF/, '').trimStart();
   if (!s) return null;
   const ch = s[0];
   if (ch === '[') return 'array';
@@ -8085,9 +8085,7 @@ function detectFormat(text) {
     const m = s.match(/^\{\s*"(\w+)"\s*:\s*\[/);
     if (m) { rootKey = m[1]; return 'root-array'; }
     // Múltiplas linhas = JSONL
-    if (s.indexOf('
-') !== -1 || s.indexOf('
-') !== -1) return 'jsonl';
+    if (s.indexOf('\n') !== -1 || s.indexOf('\r') !== -1) return 'jsonl';
     return 'single';
   }
   return 'jsonl';
@@ -8121,12 +8119,12 @@ self.onmessage = function(e) {
 
       if (format === 'array') {
         // Descarta o '[' inicial
-        const clean = combined.replace(/^﻿/, '').trimStart();
+        const clean = combined.replace(/^\uFEFF/, '').trimStart();
         arrayBuf = clean.startsWith('[') ? clean.slice(1) : clean;
         leftover = '';
       } else if (format === 'root-array' && rootKey) {
         // Avança até o '[' do array interno
-        const clean = combined.replace(/^﻿/, '');
+        const clean = combined.replace(/^\uFEFF/, '');
         const keyPos = clean.indexOf('"' + rootKey + '"');
         if (keyPos !== -1) {
           const bracket = clean.indexOf('[', keyPos);
@@ -8159,10 +8157,7 @@ self.onmessage = function(e) {
       }
     } else if (format === 'jsonl') {
       const chunk = leftover + text;
-      const lines = chunk.split(/
-?
-|
-/);
+      const lines = chunk.split(/\r?\n|\r/);
       leftover = lines.pop();
       for (const line of lines) {
         const l = line.trim();
