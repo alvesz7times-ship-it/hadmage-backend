@@ -2997,13 +2997,13 @@
       <div class="section-label">OSINT Plus — Consulta em Base JSON</div>
 
       <div class="op-dropzone" id="opDropzone">
-        <input type="file" id="opFileInput" accept=".json,.jsonl,.txt" />
+        <input type="file" id="opFileInput" accept=".json,.jsonl,.txt,.csv" />
         <div class="op-dropzone-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         </div>
         <div class="op-dropzone-title">Arraste seu arquivo aqui ou clique para selecionar</div>
         <div class="op-dropzone-sub">
-          Suporta <strong>.json</strong> (array ou objeto) e <strong>.jsonl</strong> (um JSON por linha)<br>
+          Suporta <strong>.json</strong> (array ou objeto) e <strong>.jsonl</strong> (um JSON por linha) e <strong>.csv</strong><br>
           Qualquer estrutura de campos é detectada automaticamente
         </div>
       </div>
@@ -7580,10 +7580,10 @@ function opUpdateProgress(pct, recs, capped) {
 function opHideProgress() {
   const dz = document.getElementById('opDropzone');
   dz.innerHTML = `
-    <input type="file" id="opFileInput" accept=".json,.jsonl,.txt" />
+    <input type="file" id="opFileInput" accept=".json,.jsonl,.txt,.csv" />
     <div class="op-dropzone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
     <div class="op-dropzone-title">Arraste seu arquivo aqui ou clique para selecionar</div>
-    <div class="op-dropzone-sub">Suporta <strong>.json</strong> e <strong>.jsonl</strong></div>`;
+    <div class="op-dropzone-sub">Suporta <strong>.json</strong>, <strong>.jsonl</strong> e <strong>.csv</strong></div>`;
   document.getElementById('opFileInput').addEventListener('change', e => {
     if (e.target.files[0]) opLoadFile(e.target.files[0]);
   });
@@ -7597,7 +7597,7 @@ function opFinishLoad(records, fields, file, capped, workerTotal) {
     if (_dz) {
       const errDiv = document.createElement('div');
       errDiv.style.cssText = 'margin-top:14px;padding:10px 16px;border-radius:8px;border:1px solid rgba(255,77,77,0.35);background:rgba(255,77,77,0.07);color:#ff6b6b;font-family:var(--mono);font-size:11px;line-height:1.6;text-align:center';
-      errDiv.innerHTML = '⚠ Nenhum registro encontrado.<br>Suporta: JSON-array <code>[{…}]</code>, JSONL, objeto-raiz <code>{"data":[…]}</code>';
+      errDiv.innerHTML = '⚠ Nenhum registro encontrado.<br>Suporta: JSON-array <code>[{…}]</code>, JSONL, objeto-raiz <code>{"data":[…]}</code>, CSV com cabeçalho';
       _dz.appendChild(errDiv);
     }
     return;
@@ -8024,13 +8024,14 @@ async function osintUserConsultar() {
 
 <script id="opWorkerScript" type="text/js-worker">
 /* ════════════════════════════════════════════════
-   OSINT Plus Worker v7 — parser robusto multi-formato
+   OSINT Plus Worker v8 — parser robusto multi-formato
    Detecta automaticamente:
      1. JSON-array:            [{"a":1},{"b":2}]
      2. JSONL:                 {"a":1}
 {"b":2}
      3. Objeto-raiz com array: {"data":[...]}
      4. Objeto único:          {"a":1,"b":2}
+     5. CSV:                   col1,col2\nval1,val2
    Roda fora da thread principal — UI nunca trava.
 ════════════════════════════════════════════════ */
 const MAX_RECORDS = 2000000;
@@ -8038,11 +8039,76 @@ let records  = [];
 let fieldSet = new Set();
 let total    = 0;
 let leftover = '';
-let format   = null; // null | 'array' | 'jsonl' | 'root-array' | 'single'
+let format   = null; // null | 'array' | 'jsonl' | 'root-array' | 'single' | 'csv'
 let arrayBuf = '';
 let capped   = false;
 let rootKey  = null;
+let csvHeaders = null; // cabeçalhos do CSV
 const decoder = new TextDecoder('utf-8');
+
+/* ── Parser CSV robusto: suporta aspas, vírgula e ponto-e-vírgula ── */
+function csvDetectDelimiter(line) {
+  const commas     = (line.match(/,/g)   || []).length;
+  const semicolons = (line.match(/;/g)   || []).length;
+  const tabs       = (line.match(/\t/g)  || []).length;
+  if (tabs >= commas && tabs >= semicolons) return '\t';
+  if (semicolons > commas) return ';';
+  return ',';
+}
+
+let csvDelimiter = ',';
+
+function csvParseLine(line, delim) {
+  const fields = [];
+  let cur = '', inQ = false, i = 0;
+  while (i < line.length) {
+    const ch = line[i];
+    if (inQ) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i += 2; continue; } // escaped quote
+        inQ = false; i++; continue;
+      }
+      cur += ch; i++; continue;
+    }
+    if (ch === '"') { inQ = true; i++; continue; }
+    if (ch === delim) { fields.push(cur.trim()); cur = ''; i++; continue; }
+    cur += ch; i++;
+  }
+  fields.push(cur.trim());
+  return fields;
+}
+
+function csvLineToObj(line) {
+  if (!csvHeaders || !line.trim()) return null;
+  const vals = csvParseLine(line, csvDelimiter);
+  const obj  = {};
+  csvHeaders.forEach((h, idx) => { obj[h] = vals[idx] !== undefined ? vals[idx] : ''; });
+  return obj;
+}
+
+function detectFormat(text) {
+  const s = text.replace(/^\uFEFF/, '').trimStart();
+  if (!s) return null;
+  const ch = s[0];
+  if (ch === '[') return 'array';
+  if (ch === '{') {
+    // Objeto-raiz com array: {"key": [...]}
+    const m = s.match(/^\{\s*"(\w+)"\s*:\s*\[/);
+    if (m) { rootKey = m[1]; return 'root-array'; }
+    // Múltiplas linhas = JSONL
+    if (s.indexOf('\n') !== -1 || s.indexOf('\r') !== -1) return 'jsonl';
+    return 'single';
+  }
+  // CSV: primeira linha não começa com { nem [ e tem separador identificável
+  const firstLine = s.split(/\r?\n/)[0];
+  if (firstLine && /[,;\t]/.test(firstLine)) {
+    csvDelimiter = csvDetectDelimiter(firstLine);
+    csvHeaders   = csvParseLine(firstLine.replace(/^\uFEFF/, ''), csvDelimiter)
+                     .map(h => h.replace(/^"|"$/g, '').trim());
+    return 'csv';
+  }
+  return 'jsonl';
+}
 
 /* Extrai objetos JSON completos de uma string incrementalmente.
    Retorna [objetos[], string_restante] */
@@ -8106,6 +8172,7 @@ self.onmessage = function(e) {
   if (type === 'reset') {
     records = []; fieldSet = new Set(); total = 0;
     leftover = ''; format = null; arrayBuf = ''; capped = false; rootKey = null;
+    csvHeaders = null; csvDelimiter = ',';
     return;
   }
 
@@ -8135,6 +8202,10 @@ self.onmessage = function(e) {
         leftover = '';
       } else if (format === 'jsonl') {
         // Cai no bloco JSONL abaixo
+      } else if (format === 'csv') {
+        // Pula a primeira linha (cabeçalho já foi lido em detectFormat)
+        const firstNL = combined.indexOf('\n');
+        leftover = firstNL !== -1 ? combined.slice(firstNL + 1) : '';
       } else if (format === 'single') {
         arrayBuf = combined;
         leftover = '';
@@ -8168,6 +8239,16 @@ self.onmessage = function(e) {
           else pushRecord(parsed);
         } catch(_) { total++; }
       }
+    } else if (format === 'csv') {
+      const chunk = leftover + text;
+      const lines = chunk.split(/\r?\n|\r/);
+      leftover = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const obj = csvLineToObj(line);
+        if (obj) pushRecord(obj);
+        else total++;
+      }
     }
 
     const pct = Math.min(99, Math.round(((offset + buffer.byteLength) / fileTotal) * 100));
@@ -8186,6 +8267,11 @@ self.onmessage = function(e) {
           else pushRecord(parsed);
         } catch(_) {}
       }
+    }
+    // Processa sobra do CSV
+    if (format === 'csv' && leftover.trim()) {
+      const obj = csvLineToObj(leftover.trim());
+      if (obj) pushRecord(obj);
     }
     // Objeto único ou buffer residual
     if (records.length === 0 && arrayBuf.trim()) {
