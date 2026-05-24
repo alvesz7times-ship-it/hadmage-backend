@@ -7577,12 +7577,12 @@ async function _opProcessNext() {
   _opRenderFileList();
   try {
     const result = await _opStreamReadSingle(entry.file);
-    entry.status  = result.records.length ? 'done' : 'error';
-    entry.records = result.records;
+    entry.status  = result.total > 0 ? 'done' : 'error';
+    entry.records = []; // não guardamos registros — busca usa streaming
     entry.fields  = result.fields;
     entry.total   = result.total;
     entry.capped  = result.capped;
-    entry.error   = result.records.length ? null : 'Nenhum registro encontrado';
+    entry.error   = result.total > 0 ? null : 'Nenhum registro encontrado';
   } catch(err) {
     entry.status = 'error';
     entry.error  = err.message;
@@ -7717,7 +7717,7 @@ function _opRenderFileList() {
         icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px" class="spin"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>';
         break;
       case 'done':
-        statusText = `${entry.records.length.toLocaleString('pt-BR')} reg · ${sizeLabel(entry.file.size)}`; statusClass = 'done';
+        statusText = `${entry.total.toLocaleString('pt-BR')} reg · ${sizeLabel(entry.file.size)}`; statusClass = 'done';
         icon = '✓'; break;
       case 'error':
         statusText = entry.error || 'erro'; statusClass = 'error';
@@ -8394,6 +8394,8 @@ function csvDetectDelimiter(line) {
   const commas     = (line.match(/,/g)   || []).length;
   const semicolons = (line.match(/;/g)   || []).length;
   const tabs       = (line.match(/\t/g)  || []).length;
+  const pipes      = (line.match(/\|/g)  || []).length;
+  if (pipes > commas && pipes > semicolons && pipes > tabs) return '|';
   if (tabs >= commas && tabs >= semicolons) return '\t';
   if (semicolons > commas) return ';';
   return ',';
