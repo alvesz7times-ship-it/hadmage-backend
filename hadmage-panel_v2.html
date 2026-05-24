@@ -3636,7 +3636,7 @@
           id="opSearchInput"
           type="text"
           placeholder="Buscar por qualquer campo — nome, telefone, e-mail, ID..."
-          oninput="opSearch()"
+          oninput="opSearchDebounced()"
         />
         <div class="op-search-count" id="opSearchCount"></div>
       </div>
@@ -7736,16 +7736,25 @@ function ipCarregarHistorico(addr) {
   ipConsultar();
 }
 
-/* ════════════════════════════════
-   OSINT PLUS — Upload & Search JSON
-════════════════════════════════ */
-let opAllRecords   = [];   // todos os registros do arquivo
-let opFiltered     = [];   // resultado da busca atual
-let opFields       = [];   // campos detectados
-let opActiveFields = [];   // campos ativos no filtro
-let opCurrentRecord = null;// registro aberto no modal
-let opPage         = 1;
-const OP_PER_PAGE  = 24;
+/* ════════════════════════════════════════════════════════════════
+   OSINT PLUS — Upload & Search JSON  (versão memory-safe v5)
+   ─ Lê em chunks de 8 MB, nunca carrega o arquivo inteiro.
+   ─ Cap de OP_MAX_RECORDS registros em memória (evita OOM).
+   ─ Suporta JSONL e JSON-array (mesmo sem quebras de linha).
+   ─ Busca debounced para não travar em bases grandes.
+   ════════════════════════════════════════════════════════════════ */
+let opAllRecords    = [];   // registros em memória (max OP_MAX_RECORDS)
+let opFiltered      = [];   // resultado da busca atual
+let opFields        = [];   // campos detectados
+let opActiveFields  = [];   // campos ativos no filtro
+let opCurrentRecord = null; // registro aberto no modal
+let opPage          = 1;
+let opTotalInFile   = 0;    // total real do arquivo (pode > OP_MAX_RECORDS)
+let _opSearchTimer  = null; // debounce da busca
+
+const OP_PER_PAGE   = 24;
+const OP_MAX_RECORDS = 200_000; // limite seguro de registros em RAM
+const OP_CHUNK      = 8 * 1024 * 1024; // 8 MB por chunk
 
 /* ── Drag & Drop ── */
 (function(){
@@ -7765,73 +7774,124 @@ const OP_PER_PAGE  = 24;
 
 function opLoadFile(file) {
   opAllRecords = []; opFiltered = []; opFields = []; opActiveFields = [];
-  opPage = 1;
-
-  /* Mostra progress bar */
-  opShowProgress(0, file.name, file.size);
-
-  /* Usa File.stream() + TextDecoderStream para ler em chunks sem travar */
-  if (file.stream && typeof TransformStream !== 'undefined') {
-    opStreamRead(file);
-  } else {
-    /* Fallback para browsers sem suporte a streams */
-    opChunkRead(file, 0, []);
-  }
+  opPage = 1; opTotalInFile = 0;
+  opShowProgress(file.name, file.size);
+  opStreamRead(file);
 }
 
-/* ── Leitura via Streams API (Chrome/Edge/Firefox modernos) ── */
+/* ─────────────────────────────────────────────
+   Leitor em chunks — funciona com JSONL e com
+   JSON-array compacto (sem quebras de linha).
+   Nunca mantém o arquivo completo em string.
+───────────────────────────────────────────── */
 async function opStreamRead(file) {
-  const CHUNK     = 10 * 1024 * 1024; // 10 MB por vez
-  const total     = file.size;
-  let   offset    = 0;
-  let   leftover  = '';
-  let   records   = [];
-  let   fieldSet  = new Set();
-  let   parsed    = 0;
+  const total    = file.size;
+  let offset     = 0;
+  let leftover   = '';
+  let records    = [];
+  let fieldSet   = new Set();
+  let capped     = false;
+  /* Para JSON-array compacto: detectamos se o arquivo começa com '[' */
+  let isJsonArray   = null; // null = ainda não decidido
+  let arrayBuf      = '';   // buffer acumulado apenas para JSON-array
+  let arrayDone     = false;
 
   try {
     while (offset < total) {
-      const end    = Math.min(offset + CHUNK, total);
-      const blob   = file.slice(offset, end);
-      const text   = await blob.text();
-      offset       = end;
+      const end  = Math.min(offset + OP_CHUNK, total);
+      const text = await file.slice(offset, end).text();
+      offset     = end;
 
-      const chunk  = leftover + text;
-      const lines  = chunk.split(/\r?\n|\r/);
-      leftover     = lines.pop(); // última linha pode estar incompleta
-
-      for (const line of lines) {
-        const l = line.trim();
-        if (!l || (!l.startsWith('{') && !l.startsWith('['))) continue;
-        try {
-          const obj = JSON.parse(l);
-          const arr = Array.isArray(obj) ? obj : [obj];
-          for (const r of arr) {
-            records.push(r);
-            if (fieldSet.size < 60) Object.keys(r).forEach(k => fieldSet.add(k));
-            parsed++;
-          }
-        } catch(_) {}
+      /* Detecta o formato na primeira leitura */
+      if (isJsonArray === null) {
+        const firstChar = (leftover + text).trimStart()[0];
+        isJsonArray = (firstChar === '[');
       }
 
-      /* Atualiza progresso a cada chunk */
-      const pct = Math.round((offset / total) * 100);
-      opUpdateProgress(pct, parsed);
+      if (isJsonArray && !arrayDone) {
+        /* ── Modo JSON-array: acumula até o limite e faz parse único ── */
+        /* Evitamos acumular o arquivo inteiro: paramos quando temos dados suficientes */
+        if (records.length < OP_MAX_RECORDS) {
+          arrayBuf += text;
+          /* Tenta fazer parse incremental: extrai objetos completos do buffer */
+          let depth = 0, inStr = false, esc = false, start = -1;
+          let i = 0;
+          while (i < arrayBuf.length && records.length < OP_MAX_RECORDS) {
+            const ch = arrayBuf[i];
+            if (esc)        { esc = false; i++; continue; }
+            if (ch === '\\' && inStr) { esc = true; i++; continue; }
+            if (ch === '"') { inStr = !inStr; i++; continue; }
+            if (inStr)      { i++; continue; }
+            if (ch === '{') { if (depth === 0) start = i; depth++; }
+            else if (ch === '}') {
+              depth--;
+              if (depth === 0 && start !== -1) {
+                try {
+                  const obj = JSON.parse(arrayBuf.slice(start, i + 1));
+                  if (obj && typeof obj === 'object') {
+                    records.push(obj);
+                    opTotalInFile++;
+                    if (fieldSet.size < 60) Object.keys(obj).forEach(k => fieldSet.add(k));
+                  }
+                } catch(_) {}
+                start = -1;
+              }
+            }
+            i++;
+          }
+          /* Descarta a parte já processada para não crescer a string */
+          if (start === -1) arrayBuf = arrayBuf.slice(i);
+          else              arrayBuf = arrayBuf.slice(start); // guarda objeto em andamento
+        } else {
+          /* Já temos o máximo — conta o restante sem guardar */
+          const objectMatches = text.match(/\{[^{}]*\}/g);
+          opTotalInFile += (objectMatches ? objectMatches.length : 0);
+          capped = true;
+        }
 
-      /* Yield para não travar a UI */
-      await new Promise(r => setTimeout(r, 0));
+      } else {
+        /* ── Modo JSONL: processa linha a linha ── */
+        const chunk = leftover + text;
+        const lines = chunk.split(/\r?\n|\r/);
+        leftover = lines.pop(); // última linha pode estar incompleta
+
+        for (const line of lines) {
+          const l = line.trim();
+          if (!l || (!l.startsWith('{') && !l.startsWith('['))) continue;
+          opTotalInFile++;
+          if (records.length >= OP_MAX_RECORDS) { capped = true; continue; }
+          try {
+            const obj = JSON.parse(l);
+            const arr = Array.isArray(obj) ? obj : [obj];
+            for (const r of arr) {
+              if (!r || typeof r !== 'object') continue;
+              records.push(r);
+              if (fieldSet.size < 60) Object.keys(r).forEach(k => fieldSet.add(k));
+            }
+          } catch(_) {}
+        }
+      }
+
+      opUpdateProgress(Math.round((offset / total) * 100), records.length, capped);
+      await new Promise(r => setTimeout(r, 0)); // yield UI
     }
 
-    /* Processa o que sobrou no leftover */
-    if (leftover.trim().startsWith('{') || leftover.trim().startsWith('[')) {
-      try {
-        const obj = JSON.parse(leftover.trim());
-        const arr = Array.isArray(obj) ? obj : [obj];
-        arr.forEach(r => { records.push(r); parsed++; });
-      } catch(_) {}
+    /* Processa leftover final do JSONL */
+    if (!isJsonArray && leftover.trim()) {
+      const l = leftover.trim();
+      if (l.startsWith('{') || l.startsWith('[')) {
+        opTotalInFile++;
+        if (records.length < OP_MAX_RECORDS) {
+          try {
+            const obj = JSON.parse(l);
+            const arr = Array.isArray(obj) ? obj : [obj];
+            arr.forEach(r => { if (r && typeof r === 'object') records.push(r); });
+          } catch(_) {}
+        }
+      }
     }
 
-    opFinishLoad(records, [...fieldSet], file);
+    opFinishLoad(records, [...fieldSet], file, capped);
 
   } catch(err) {
     opHideProgress();
@@ -7839,77 +7899,36 @@ async function opStreamRead(file) {
   }
 }
 
-/* ── Fallback: leitura em fatias com FileReader ── */
-function opChunkRead(file, offset, records) {
-  const CHUNK   = 8 * 1024 * 1024;
-  const total   = file.size;
-  const fieldSet = new Set();
-
-  function readNext(off, leftover, recs) {
-    if (off >= total) {
-      opFinishLoad(recs, [...fieldSet], file);
-      return;
-    }
-    const end    = Math.min(off + CHUNK, total);
-    const blob   = file.slice(off, end);
-    const reader = new FileReader();
-    reader.onload = e => {
-      const chunk = leftover + e.target.result;
-      const lines = chunk.split(/\r?\n|\r/);
-      const next  = lines.pop();
-      for (const line of lines) {
-        const l = line.trim();
-        if (!l || (!l.startsWith('{') && !l.startsWith('['))) continue;
-        try {
-          const obj = JSON.parse(l);
-          const arr = Array.isArray(obj) ? obj : [obj];
-          arr.forEach(r => {
-            recs.push(r);
-            if (fieldSet.size < 60) Object.keys(r).forEach(k => fieldSet.add(k));
-          });
-        } catch(_) {}
-      }
-      const pct = Math.round((end / total) * 100);
-      opUpdateProgress(pct, recs.length);
-      setTimeout(() => readNext(end, next, recs), 0);
-    };
-    reader.readAsText(blob, 'utf-8');
-  }
-
-  opShowProgress(0, file.name, total);
-  readNext(0, '', []);
-}
-
 /* ── Progress UI ── */
-function opShowProgress(pct, name, size) {
-  const dz = document.getElementById('opDropzone');
-  dz.innerHTML = `
+function opShowProgress(name, size) {
+  document.getElementById('opDropzone').innerHTML = `
     <div class="op-dropzone-icon" style="background:rgba(0,229,160,0.1);border-color:rgba(0,229,160,0.3)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin">
+        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+      </svg>
     </div>
-    <div class="op-dropzone-title" id="opProgressTitle">Carregando ${name}…</div>
+    <div class="op-dropzone-title" id="opProgressTitle">Carregando ${_escO(name)}…</div>
     <div style="margin:14px auto 0;width:100%;max-width:340px;height:6px;background:var(--border);border-radius:6px;overflow:hidden">
-      <div id="opProgressBar" style="height:100%;width:0%;background:var(--green);border-radius:6px;transition:width 0.3s"></div>
+      <div id="opProgressBar" style="height:100%;width:0%;background:var(--green);border-radius:6px;transition:width 0.25s"></div>
     </div>
     <div class="op-dropzone-sub" style="margin-top:10px">
       <span id="opProgressPct">0%</span> — <span id="opProgressRecs">0 registros lidos</span>
-      <br><strong>${(size/1024/1024).toFixed(1)} MB</strong> · lendo em chunks de 10 MB
+      <br><strong>${(size/1024/1024).toFixed(1)} MB</strong> · chunks de 8 MB, sem travar memória
     </div>`;
 }
 
-function opUpdateProgress(pct, recs) {
-  const bar   = document.getElementById('opProgressBar');
-  const pctEl = document.getElementById('opProgressPct');
-  const recEl = document.getElementById('opProgressRecs');
-  const titEl = document.getElementById('opProgressTitle');
-  if (bar)   bar.style.width  = pct + '%';
-  if (pctEl) pctEl.textContent = pct + '%';
-  if (recEl) recEl.textContent = recs.toLocaleString('pt-BR') + ' registros lidos';
-  if (pct >= 100 && titEl) titEl.textContent = 'Finalizando…';
+function opUpdateProgress(pct, recs, capped) {
+  const b = document.getElementById('opProgressBar');
+  const p = document.getElementById('opProgressPct');
+  const r = document.getElementById('opProgressRecs');
+  const t = document.getElementById('opProgressTitle');
+  if (b) b.style.width = pct + '%';
+  if (p) p.textContent = pct + '%';
+  if (r) r.textContent = recs.toLocaleString('pt-BR') + ' registros' + (capped ? ` (limite ${OP_MAX_RECORDS.toLocaleString('pt-BR')})` : '');
+  if (pct >= 100 && t) t.textContent = 'Finalizando…';
 }
 
 function opHideProgress() {
-  /* Restaura dropzone original se cancelar */
   const dz = document.getElementById('opDropzone');
   dz.innerHTML = `
     <input type="file" id="opFileInput" accept=".json,.jsonl,.txt" />
@@ -7921,36 +7940,45 @@ function opHideProgress() {
   });
 }
 
-/* ── Finaliza após leitura completa ── */
-function opFinishLoad(records, fields, file) {
+/* ── Finaliza após leitura ── */
+function opFinishLoad(records, fields, file, capped) {
   if (!records.length) {
     opHideProgress();
-    alert('Nenhum registro JSON válido encontrado no arquivo.\nVerifique se é um arquivo .json ou .jsonl com um objeto por linha.');
+    alert('Nenhum registro JSON válido encontrado.\nVerifique se é .json (array) ou .jsonl (um objeto por linha).');
     return;
   }
 
-  opAllRecords   = records;
-  opFiltered     = records;
-  opPage         = 1;
-  opFields       = fields.length ? fields : (() => {
+  opAllRecords  = records;
+  opFiltered    = records;
+  opPage        = 1;
+  opFields      = fields.length ? fields : (() => {
     const s = new Set();
-    records.slice(0, 200).forEach(r => Object.keys(r).forEach(k => s.add(k)));
+    records.slice(0, 100).forEach(r => Object.keys(r).forEach(k => s.add(k)));
     return [...s];
   })();
   opActiveFields = [...opFields];
 
-  /* Restaura dropzone e mostra barra de arquivo */
   const dz = document.getElementById('opDropzone');
   dz.style.display = 'none';
 
+  const totalLabel = capped
+    ? `${records.length.toLocaleString('pt-BR')} de ${opTotalInFile.toLocaleString('pt-BR')} registros (limite de memória)`
+    : `${records.length.toLocaleString('pt-BR')} registros`;
+
   document.getElementById('opFileName').textContent = file.name;
   document.getElementById('opFileMeta').textContent =
-    `${records.length.toLocaleString('pt-BR')} registros · ${opFields.length} campos · ${(file.size / 1024 / 1024).toFixed(1)} MB`;
+    `${totalLabel} · ${opFields.length} campos · ${(file.size/1024/1024).toFixed(1)} MB`;
   document.getElementById('opFileBar').classList.add('visible');
   document.getElementById('opSearchPanel').style.display = 'block';
   document.getElementById('opSearchInput').value = '';
   document.getElementById('opSearchInput').placeholder =
     `Buscar em ${records.length.toLocaleString('pt-BR')} registros...`;
+
+  if (capped) {
+    const warn = document.getElementById('opFileMeta');
+    warn.style.color = 'var(--yellow)';
+    warn.title = `Arquivo muito grande: exibindo os primeiros ${OP_MAX_RECORDS.toLocaleString()} registros de ${opTotalInFile.toLocaleString()} para proteger a memória.`;
+  }
 
   opBuildFilterChips();
   opRender();
@@ -7958,9 +7986,12 @@ function opFinishLoad(records, fields, file) {
 
 function opClearFile() {
   opAllRecords = []; opFiltered = []; opFields = []; opActiveFields = [];
-  opPage = 1;
+  opPage = 1; opTotalInFile = 0;
+  if (_opSearchTimer) clearTimeout(_opSearchTimer);
   document.getElementById('opFileBar').classList.remove('visible');
-  document.getElementById('opDropzone').style.display = '';
+  const dz = document.getElementById('opDropzone');
+  dz.style.display = '';
+  dz.style.removeProperty('display');
   document.getElementById('opSearchPanel').style.display = 'none';
   document.getElementById('opFileInput').value = '';
 }
@@ -7968,52 +7999,51 @@ function opClearFile() {
 /* ── Filtros de campo ── */
 function opBuildFilterChips() {
   const row = document.getElementById('opFilterRow');
-  /* Campos mais úteis aparecem primeiro */
   const priority = ['nick','name','firstName','lastName','phone','email','adapterUserId','ref'];
   const sorted = [
     ...priority.filter(f => opFields.includes(f)),
     ...opFields.filter(f => !priority.includes(f))
   ];
-
   row.innerHTML = `
     <div class="op-filter-chip active" onclick="opToggleAllFields(this)">
       <span class="op-fc-dot"></span> Todos os campos
-    </div>
-  ` + sorted.map(f => `
+    </div>` +
+    sorted.map(f => `
     <div class="op-filter-chip active" data-field="${_escO(f)}" onclick="opToggleField(this,'${_escO(f)}')">
       <span class="op-fc-dot"></span> ${_escO(f)}
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 function opToggleField(el, field) {
   el.classList.toggle('active');
-  if (el.classList.contains('active')) {
-    if (!opActiveFields.includes(field)) opActiveFields.push(field);
-  } else {
-    opActiveFields = opActiveFields.filter(f => f !== field);
-  }
+  opActiveFields = el.classList.contains('active')
+    ? [...new Set([...opActiveFields, field])]
+    : opActiveFields.filter(f => f !== field);
   opPage = 1;
-  opSearch();
+  opSearchDebounced();
 }
 
 function opToggleAllFields(el) {
   const allActive = opActiveFields.length === opFields.length;
   if (allActive) {
     opActiveFields = [];
-    document.querySelectorAll('#opFilterRow .op-filter-chip[data-field]').forEach(c => c.classList.remove('active'));
-    el.classList.remove('active');
+    document.querySelectorAll('#opFilterRow .op-filter-chip').forEach(c => c.classList.remove('active'));
   } else {
     opActiveFields = [...opFields];
     document.querySelectorAll('#opFilterRow .op-filter-chip').forEach(c => c.classList.add('active'));
   }
   opPage = 1;
-  opSearch();
+  opSearchDebounced();
 }
 
-/* ── Busca ── */
+/* ── Busca com debounce (evita travar em bases grandes) ── */
+function opSearchDebounced() {
+  if (_opSearchTimer) clearTimeout(_opSearchTimer);
+  _opSearchTimer = setTimeout(opSearch, 220);
+}
+
 function opSearch() {
-  const term = (document.getElementById('opSearchInput').value || '').toLowerCase().trim();
+  const term   = (document.getElementById('opSearchInput').value || '').toLowerCase().trim();
   const fields = opActiveFields.length ? opActiveFields : opFields;
 
   if (!term) {
@@ -8026,30 +8056,27 @@ function opSearch() {
       })
     );
   }
-
   opPage = 1;
   opRender();
 }
 
-/* ── Renderização ── */
+/* ── Renderização (só a página atual — sem innerHTML gigante) ── */
 function opRender() {
-  const total   = opFiltered.length;
-  const pages   = Math.ceil(total / OP_PER_PAGE);
-  const start   = (opPage - 1) * OP_PER_PAGE;
-  const slice   = opFiltered.slice(start, start + OP_PER_PAGE);
-  const term    = (document.getElementById('opSearchInput').value || '').toLowerCase().trim();
+  const total  = opFiltered.length;
+  const pages  = Math.ceil(total / OP_PER_PAGE) || 1;
+  const start  = (opPage - 1) * OP_PER_PAGE;
+  const slice  = opFiltered.slice(start, start + OP_PER_PAGE);
+  const term   = (document.getElementById('opSearchInput').value || '').toLowerCase().trim();
 
-  /* Contador */
   document.getElementById('opSearchCount').innerHTML = term
     ? `<strong>${total.toLocaleString('pt-BR')}</strong> de ${opAllRecords.length.toLocaleString('pt-BR')} registros`
     : `<strong>${total.toLocaleString('pt-BR')}</strong> registros`;
 
-  /* Grid */
   const grid  = document.getElementById('opGrid');
   const empty = document.getElementById('opEmpty');
 
   if (!slice.length) {
-    grid.innerHTML  = '';
+    grid.innerHTML = '';
     empty.style.display = 'block';
     document.getElementById('opEmptyTerm').textContent = term;
     document.getElementById('opPagination').innerHTML = '';
@@ -8057,41 +8084,45 @@ function opRender() {
   }
   empty.style.display = 'none';
 
-  /* Campos de prévia nos cards */
   const previewFields = ['nick','name','firstName','lastName','phone','email',
     'adapterUserId','ref','customerId'].filter(f => opFields.includes(f));
 
-  grid.innerHTML = slice.map((rec, idx) => {
+  /* Usa DocumentFragment para evitar múltiplos reflows */
+  const frag = document.createDocumentFragment();
+  slice.forEach((rec, idx) => {
     const realIdx = start + idx;
-    const name  = rec.name || rec.nick || rec.firstName || rec.login || rec.username || Object.values(rec).find(v => typeof v === 'string' && v.trim()) || '—';
-    const initial = (String(name).replace(/[^a-zA-ZА-яёЁ]/g,'')[0] || '?').toUpperCase();
-    const subText = rec.adapterUserId ? `ID: ${rec.adapterUserId}` : (rec.id ? `ID: ${rec.id}` : '');
-    const unsub   = rec.unsubscribed;
+    const nameVal = rec.name || rec.nick || rec.firstName || rec.login || rec.username
+      || Object.values(rec).find(v => typeof v === 'string' && v.trim()) || '—';
+    const initial  = (String(nameVal).replace(/[^a-zA-ZА-яёЁ]/g,'')[0] || '?').toUpperCase();
+    const subText  = rec.adapterUserId ? `ID: ${rec.adapterUserId}` : (rec.id ? `ID: ${rec.id}` : '');
+    const unsub    = rec.unsubscribed;
 
-    const rows = previewFields.slice(0, 5).map(f => {
+    const rowsHtml = previewFields.slice(0, 5).map(f => {
       const v = rec[f];
-      if (!v && v !== 0) return '';
-      const cls = f === 'phone' || f === 'email' ? 'green' : f === 'adapterUserId' || f === 'customerId' ? 'accent' : '';
-      return `<div class="op-card-row">
-        <span class="op-card-key">${_escO(f)}</span>
-        <span class="op-card-val ${cls}">${_escO(String(v))}</span>
-      </div>`;
+      if (v === undefined || v === null || v === '') return '';
+      const cls = (f==='phone'||f==='email') ? 'green' : (f==='adapterUserId'||f==='customerId') ? 'accent' : '';
+      return `<div class="op-card-row"><span class="op-card-key">${_escO(f)}</span><span class="op-card-val ${cls}">${_escO(String(v))}</span></div>`;
     }).join('');
 
-    return `<div class="op-card" onclick="opOpenModal(${realIdx})">
+    const card = document.createElement('div');
+    card.className = 'op-card';
+    card.onclick   = () => opOpenModal(realIdx);
+    card.innerHTML = `
       <div class="op-card-head">
         <div class="op-card-avatar">${_escO(initial)}</div>
         <div style="flex:1;min-width:0">
-          <div class="op-card-name">${_escO(String(name).slice(0,40))}</div>
+          <div class="op-card-name">${_escO(String(nameVal).slice(0,40))}</div>
           <div class="op-card-id">${_escO(subText)}</div>
         </div>
-        ${unsub !== undefined ? `<span class="op-card-unsub ${_escO(String(unsub))}">${unsub === 'y' ? 'Unsub' : 'Ativo'}</span>` : ''}
+        ${unsub !== undefined ? `<span class="op-card-unsub ${_escO(String(unsub))}">${unsub==='y'?'Unsub':'Ativo'}</span>` : ''}
       </div>
-      <div class="op-card-body">${rows || '<span style="font-family:var(--mono);font-size:10px;color:var(--muted)">sem campos de prévia</span>'}</div>
-    </div>`;
-  }).join('');
+      <div class="op-card-body">${rowsHtml || '<span style="font-family:var(--mono);font-size:10px;color:var(--muted)">sem campos de prévia</span>'}</div>`;
+    frag.appendChild(card);
+  });
 
-  /* Paginação */
+  grid.innerHTML = '';
+  grid.appendChild(frag);
+
   opRenderPagination(pages);
 }
 
@@ -8100,24 +8131,22 @@ function opRenderPagination(pages) {
   if (pages <= 1) { pag.innerHTML = ''; return; }
 
   let html = `<button class="op-page-btn" onclick="opGoPage(${opPage-1})" ${opPage===1?'disabled':''}>‹</button>`;
-
   const range = [];
   for (let i = 1; i <= pages; i++) {
-    if (i === 1 || i === pages || (i >= opPage-2 && i <= opPage+2)) range.push(i);
+    if (i===1 || i===pages || (i>=opPage-2 && i<=opPage+2)) range.push(i);
     else if (range[range.length-1] !== '…') range.push('…');
   }
   range.forEach(p => {
-    if (p === '…') html += `<span class="op-page-info">…</span>`;
+    if (p==='…') html += `<span class="op-page-info">…</span>`;
     else html += `<button class="op-page-btn ${p===opPage?'active':''}" onclick="opGoPage(${p})">${p}</button>`;
   });
-
   html += `<button class="op-page-btn" onclick="opGoPage(${opPage+1})" ${opPage===pages?'disabled':''}>›</button>`;
   html += `<span class="op-page-info">${opPage}/${pages}</span>`;
   pag.innerHTML = html;
 }
 
 function opGoPage(p) {
-  const pages = Math.ceil(opFiltered.length / OP_PER_PAGE);
+  const pages = Math.ceil(opFiltered.length / OP_PER_PAGE) || 1;
   if (p < 1 || p > pages) return;
   opPage = p;
   opRender();
@@ -8130,34 +8159,29 @@ function opOpenModal(idx) {
   if (!rec) return;
   opCurrentRecord = rec;
 
-  const name = rec.name || rec.nick || rec.firstName || rec.login || rec.username || '—';
+  const name    = rec.name || rec.nick || rec.firstName || rec.login || rec.username || '—';
   const initial = (String(name).replace(/[^a-zA-ZА-яёЁ]/g,'')[0] || '?').toUpperCase();
 
   document.getElementById('opModalAvatar').textContent = initial;
-  document.getElementById('opModalName').textContent   = String(name).slice(0, 60);
+  document.getElementById('opModalName').textContent   = String(name).slice(0,60);
   document.getElementById('opModalSub').textContent    = rec.adapterUserId
     ? `Telegram ID: ${rec.adapterUserId}` : (rec.id ? `ID: ${rec.id}` : '');
 
-  /* Cores por campo */
   const colorMap = {
-    phone: 'green', email: 'green', adapterUserId: 'cyan',
-    customerId: 'accent', unsubscribed: rec.unsubscribed === 'y' ? 'red' : 'green',
-    spider_created_at: 'muted', spider_last_message_at: 'muted',
-    nick_userid_md5: 'muted',
+    phone:'green', email:'green', adapterUserId:'cyan', customerId:'accent',
+    unsubscribed: rec.unsubscribed==='y' ? 'red' : 'green',
+    spider_created_at:'muted', spider_last_message_at:'muted', nick_userid_md5:'muted',
   };
-
   const tsFields = ['spider_created_at','spider_last_message_at'];
 
   document.getElementById('opModalBody').innerHTML = Object.entries(rec).map(([k, v]) => {
-    if (v === null || v === undefined || v === '') return '';
+    if (v===null || v===undefined || v==='') return '';
     let display = String(v);
-    if (tsFields.includes(k) && typeof v === 'number' && v > 1000000000) {
-      display = new Date(v * 1000).toLocaleString('pt-BR');
-    }
-    const cls = colorMap[k] || '';
+    if (tsFields.includes(k) && typeof v==='number' && v>1_000_000_000)
+      display = new Date(v*1000).toLocaleString('pt-BR');
     return `<div class="op-modal-field">
       <span class="op-modal-key">${_escO(k)}</span>
-      <span class="op-modal-val ${cls}">${_escO(display)}</span>
+      <span class="op-modal-val ${colorMap[k]||''}">${_escO(display)}</span>
     </div>`;
   }).join('');
 
@@ -8168,17 +8192,14 @@ function opCloseModal() {
   document.getElementById('opModalOverlay').classList.remove('open');
   opCurrentRecord = null;
 }
-
 function opModalClickOut(e) {
-  if (e.target === document.getElementById('opModalOverlay')) opCloseModal();
+  if (e.target===document.getElementById('opModalOverlay')) opCloseModal();
 }
-
 function opModalCopy() {
   if (!opCurrentRecord) return;
   const text = Object.entries(opCurrentRecord)
-    .filter(([,v]) => v !== null && v !== undefined && v !== '')
-    .map(([k,v]) => `${k}: ${v}`)
-    .join('\n');
+    .filter(([,v]) => v!==null && v!==undefined && v!=='')
+    .map(([k,v]) => `${k}: ${v}`).join('\n');
   navigator.clipboard.writeText(text).then(() => {
     const btn = document.getElementById('opModalCopyBtn');
     btn.classList.add('op-copy-copied');
@@ -8190,32 +8211,38 @@ function opModalCopy() {
   });
 }
 
-/* ── Exportar ── */
+/* ── Exportar (streaming para evitar string gigante) ── */
 function opExportCSV() {
   if (!opFiltered.length) return;
   const keys = opFields;
-  const rows = [keys.join(',')];
+  const parts = [keys.join(',') + '\n'];
   opFiltered.forEach(rec => {
-    rows.push(keys.map(k => {
+    parts.push(keys.map(k => {
       const v = rec[k] ?? '';
-      const s = String(v).replace(/"/g, '""');
-      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
-    }).join(','));
+      const s = String(v).replace(/"/g,'""');
+      return (s.includes(',')||s.includes('"')||s.includes('\n')) ? `"${s}"` : s;
+    }).join(',') + '\n');
   });
-  opDownload('osint-plus-export.csv', rows.join('\n'), 'text/csv');
+  opDownload('osint-plus-export.csv', new Blob(parts, {type:'text/csv'}), 'osint-plus-export.csv');
 }
 
 function opExportJSON() {
   if (!opFiltered.length) return;
-  opDownload('osint-plus-export.json', JSON.stringify(opFiltered, null, 2), 'application/json');
+  /* Streaming: constrói o JSON em partes para evitar string gigante em memória */
+  const parts = ['[\n'];
+  opFiltered.forEach((rec, i) => {
+    parts.push(JSON.stringify(rec) + (i < opFiltered.length-1 ? ',\n' : '\n'));
+  });
+  parts.push(']');
+  opDownload('osint-plus-export.json', new Blob(parts, {type:'application/json'}), 'osint-plus-export.json');
 }
 
-function opDownload(filename, content, mime) {
+function opDownload(name, blob, filename) {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([content], { type: mime }));
-  a.download = filename;
+  a.href = URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob]));
+  a.download = filename || name;
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
 const OSINT_PLATFORMS = [
