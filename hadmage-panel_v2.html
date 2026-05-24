@@ -7461,230 +7461,9 @@ const OP_MAX_RECORDS = 2_000_000; // 2 milhões de registros em RAM
 const OP_CHUNK       = 32 * 1024 * 1024; // 32 MB por chunk
 
 /* ── Código do Worker como Blob (sem arquivo externo) ── */
-const _opWorkerCode = `
-/* ════════════════════════════════════════════════
-   OSINT Plus Worker v7 — parser robusto multi-formato
-   Detecta automaticamente:
-     1. JSON-array compacto:    [{"a":1},{"b":2}]
-     2. JSONL (um obj/linha):   {"a":1}\n{"b":2}
-     3. Objeto-raiz com array:  {"data":[...]} / {"results":[...]}
-     4. Objeto único:           {"a":1,"b":2}
-   Nunca acumula o arquivo inteiro em memória.
-════════════════════════════════════════════════ */
-const MAX_RECORDS = 2_000_000;
-let records   = [];
-let fieldSet  = new Set();
-let total     = 0;
-let leftover  = '';
-let format    = null; // null=desconhecido | 'array' | 'jsonl' | 'root-array' | 'single'
-let arrayBuf  = '';   // buffer para modos array/root-array
-let capped    = false;
-let rootKey   = null; // chave do array dentro do objeto raiz
-const decoder = new TextDecoder('utf-8');
-
-/* ── Extrai objetos JSON completos de uma string (parser incremental) ─────
-   Retorna [objetos_extraídos[], string_restante]
-   Ignora conteúdo fora de chaves (vírgulas, colchetes, espaços).            */
-function extractObjects(str, limit) {
-  const out = [];
-  let depth = 0, inStr = false, esc = false, start = -1, i = 0;
-  const len = str.length;
-  while (i < len) {
-    const ch = str[i];
-    if (esc)               { esc = false;       i++; continue; }
-    if (ch === '\\\\' && inStr) { esc = true;        i++; continue; }
-    if (ch === '"')        { inStr = !inStr;    i++; continue; }
-    if (inStr)             {                    i++; continue; }
-    if (ch === '{')        { if (depth === 0) start = i; depth++; i++; continue; }
-    if (ch === '}') {
-      depth--;
-      if (depth === 0 && start !== -1) {
-        if (out.length < limit) {
-          try {
-            const raw = str.slice(start, i + 1);
-            const obj = JSON.parse(raw);
-            if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
-              out.push(obj);
-            }
-          } catch(_) {}
-        }
-        start = -1;
-      }
-      i++; continue;
-    }
-    i++;
-  }
-  /* Preserva fragmento de objeto em andamento */
-  const rest = (start !== -1) ? str.slice(start) : str.slice(i);
-  return [out, rest];
-}
-
-/* ── Detecta o formato olhando os primeiros bytes ── */
-function detectFormat(text) {
-  const s = text.replace(/^\uFEFF/, '').trimStart(); // remove BOM
-  const ch = s[0];
-  if (ch === '[') return 'array';
-  if (ch === '{') {
-    /* Tenta ver se é objeto-raiz com array dentro */
-    /* Lê a primeira chave e o tipo do valor */
-    try {
-      /* Parse parcial: pega até o primeiro array encontrado */
-      const arrMatch = s.match(/^\{[^[]*"(\w+)"\s*:\s*\[/);
-      if (arrMatch) {
-        rootKey = arrMatch[1];
-        return 'root-array';
-      }
-    } catch(_) {}
-    /* Múltiplos objetos separados por newline = JSONL começando com { */
-    if (s.includes('\\n') || s.includes('\\r')) return 'jsonl';
-    return 'single';
-  }
-  /* Fallback: tenta JSONL */
-  return 'jsonl';
-}
-
-function pushRecord(obj) {
-  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
-  records.push(obj);
-  total++;
-  if (fieldSet.size < 100) Object.keys(obj).forEach(k => fieldSet.add(k));
-  if (records.length >= MAX_RECORDS) capped = true;
-}
-
-self.onmessage = function(e) {
-  const { type, buffer, fileTotal, offset } = e.data;
-
-  if (type === 'reset') {
-    records = []; fieldSet = new Set(); total = 0;
-    leftover = ''; format = null; arrayBuf = ''; capped = false; rootKey = null;
-    return;
-  }
-
-  if (type === 'chunk') {
-    const text = decoder.decode(new Uint8Array(buffer), { stream: true });
-
-    /* Detecta formato na primeira chamada */
-    if (format === null) {
-      format = detectFormat(leftover + text);
-      /* Para root-array: descarta tudo antes do array */
-      if (format === 'root-array' && rootKey) {
-        const combined = (leftover + text).replace(/^\uFEFF/, '');
-        const arrStart = combined.indexOf('"' + rootKey + '"');
-        if (arrStart !== -1) {
-          const bracket = combined.indexOf('[', arrStart);
-          if (bracket !== -1) {
-            arrayBuf = combined.slice(bracket + 1); // começa após o '['
-          } else {
-            arrayBuf = combined;
-          }
-        } else {
-          arrayBuf = combined;
-        }
-        leftover = '';
-      }
-    }
-
-    /* ── Modo array ou root-array: parser incremental de objetos ── */
-    if (format === 'array' || format === 'root-array') {
-      if (!capped) {
-        if (format === 'array' && arrayBuf === '' && leftover === '') {
-          /* Primeiro chunk do array: descarta o '[' inicial */
-          const combined = text.replace(/^\uFEFF/, '').trimStart();
-          arrayBuf = combined.startsWith('[') ? combined.slice(1) : combined;
-        } else if (format === 'array') {
-          arrayBuf += text;
-        } else {
-          /* root-array: já inicializamos arrayBuf acima */
-          if (arrayBuf === '' || (arrayBuf === '' && text)) {
-            arrayBuf += text;
-          } else {
-            arrayBuf += text;
-          }
-        }
-        const limit = MAX_RECORDS - records.length;
-        const [objs, rest] = extractObjects(arrayBuf, limit);
-        objs.forEach(pushRecord);
-        arrayBuf = rest;
-      } else {
-        const m = text.match(/\{/g);
-        total += m ? m.length : 0;
-      }
-
-    /* ── Modo JSONL ── */
-    } else if (format === 'jsonl') {
-      const chunk = leftover + text;
-      const lines = chunk.split(/\r?\n|\r/);
-      leftover = lines.pop();
-      for (const line of lines) {
-        const l = line.trim();
-        if (!l) continue;
-        if (l[0] !== '{' && l[0] !== '[') continue;
-        if (capped) { total++; continue; }
-        try {
-          const parsed = JSON.parse(l);
-          if (Array.isArray(parsed)) {
-            parsed.forEach(r => { if (!capped) pushRecord(r); else total++; });
-          } else {
-            pushRecord(parsed);
-          }
-        } catch(_) { total++; }
-      }
-
-    /* ── Objeto único ou desconhecido: acumula tudo ── */
-    } else {
-      arrayBuf += text;
-    }
-
-    const pct = Math.min(99, Math.round(((offset + buffer.byteLength) / fileTotal) * 100));
-    self.postMessage({ type: 'progress', pct, count: records.length, total, capped });
-    return;
-  }
-
-  if (type === 'finish') {
-    /* Processa restos */
-    if (format === 'jsonl' && leftover.trim()) {
-      const l = leftover.trim();
-      if (l[0] === '{' || l[0] === '[') {
-        try {
-          const parsed = JSON.parse(l);
-          if (Array.isArray(parsed)) parsed.forEach(pushRecord);
-          else pushRecord(parsed);
-        } catch(_) {}
-      }
-    }
-    /* Objeto único: tenta parsear o buffer inteiro */
-    if ((format === 'single' || (records.length === 0 && arrayBuf)) && arrayBuf.trim()) {
-      try {
-        const parsed = JSON.parse(arrayBuf.trim());
-        if (Array.isArray(parsed)) {
-          parsed.forEach(pushRecord);
-        } else if (parsed && typeof parsed === 'object') {
-          /* Procura o primeiro valor array dentro do objeto */
-          const arrVal = Object.values(parsed).find(v => Array.isArray(v));
-          if (arrVal) {
-            arrVal.forEach(pushRecord);
-          } else {
-            pushRecord(parsed);
-          }
-        }
-      } catch(_) {}
-    }
-    /* Se ainda nada foi encontrado, tenta extrair objetos do que sobrou */
-    if (records.length === 0 && (arrayBuf + leftover).trim()) {
-      const combined = (arrayBuf + leftover).trim();
-      const [objs] = extractObjects(combined, MAX_RECORDS);
-      objs.forEach(pushRecord);
-    }
-
-    self.postMessage({ type: 'done', records, fields: [...fieldSet], total, capped });
-    records = []; arrayBuf = ''; leftover = '';
-    return;
-  }
-};
-`;
-
 function _opMakeWorker() {
-  const blob = new Blob([_opWorkerCode], { type: 'application/javascript' });
+  const src  = document.getElementById('opWorkerScript').textContent;
+  const blob = new Blob([src], { type: 'application/javascript' });
   return new Worker(URL.createObjectURL(blob));
 }
 
@@ -8243,5 +8022,199 @@ async function osintUserConsultar() {
 
 </script>
 
+<script id="opWorkerScript" type="text/js-worker">
+/* ════════════════════════════════════════════════
+   OSINT Plus Worker v7 — parser robusto multi-formato
+   Detecta automaticamente:
+     1. JSON-array:            [{"a":1},{"b":2}]
+     2. JSONL:                 {"a":1}
+{"b":2}
+     3. Objeto-raiz com array: {"data":[...]}
+     4. Objeto único:          {"a":1,"b":2}
+   Roda fora da thread principal — UI nunca trava.
+════════════════════════════════════════════════ */
+const MAX_RECORDS = 2000000;
+let records  = [];
+let fieldSet = new Set();
+let total    = 0;
+let leftover = '';
+let format   = null; // null | 'array' | 'jsonl' | 'root-array' | 'single'
+let arrayBuf = '';
+let capped   = false;
+let rootKey  = null;
+const decoder = new TextDecoder('utf-8');
+
+/* Extrai objetos JSON completos de uma string incrementalmente.
+   Retorna [objetos[], string_restante] */
+function extractObjects(str, limit) {
+  const out = [];
+  let depth = 0, inStr = false, esc = false, start = -1, i = 0;
+  const len = str.length;
+  while (i < len) {
+    const ch = str[i];
+    if (esc)           { esc = false;    i++; continue; }
+    if (ch === '\' && inStr) { esc = true; i++; continue; }
+    if (ch === '"')    { inStr = !inStr; i++; continue; }
+    if (inStr)         {                 i++; continue; }
+    if (ch === '{')    { if (depth === 0) start = i; depth++; i++; continue; }
+    if (ch === '}') {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        if (out.length < limit) {
+          try {
+            const obj = JSON.parse(str.slice(start, i + 1));
+            if (obj && typeof obj === 'object' && !Array.isArray(obj)) out.push(obj);
+          } catch(_) {}
+        }
+        start = -1;
+      }
+      i++; continue;
+    }
+    i++;
+  }
+  return [out, (start !== -1) ? str.slice(start) : str.slice(i)];
+}
+
+function detectFormat(text) {
+  const s = text.replace(/^﻿/, '').trimStart();
+  if (!s) return null;
+  const ch = s[0];
+  if (ch === '[') return 'array';
+  if (ch === '{') {
+    // Objeto-raiz com array: {"key": [...]}
+    const m = s.match(/^\{\s*"(\w+)"\s*:\s*\[/);
+    if (m) { rootKey = m[1]; return 'root-array'; }
+    // Múltiplas linhas = JSONL
+    if (s.indexOf('
+') !== -1 || s.indexOf('
+') !== -1) return 'jsonl';
+    return 'single';
+  }
+  return 'jsonl';
+}
+
+function pushRecord(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
+  if (capped) { total++; return; }
+  records.push(obj);
+  total++;
+  if (fieldSet.size < 100) Object.keys(obj).forEach(k => fieldSet.add(k));
+  if (records.length >= MAX_RECORDS) capped = true;
+}
+
+self.onmessage = function(e) {
+  const { type, buffer, fileTotal, offset } = e.data;
+
+  if (type === 'reset') {
+    records = []; fieldSet = new Set(); total = 0;
+    leftover = ''; format = null; arrayBuf = ''; capped = false; rootKey = null;
+    return;
+  }
+
+  if (type === 'chunk') {
+    const text = decoder.decode(new Uint8Array(buffer), { stream: true });
+
+    if (format === null) {
+      const combined = leftover + text;
+      format = detectFormat(combined);
+      if (format === null) { leftover = combined; return; }
+
+      if (format === 'array') {
+        // Descarta o '[' inicial
+        const clean = combined.replace(/^﻿/, '').trimStart();
+        arrayBuf = clean.startsWith('[') ? clean.slice(1) : clean;
+        leftover = '';
+      } else if (format === 'root-array' && rootKey) {
+        // Avança até o '[' do array interno
+        const clean = combined.replace(/^﻿/, '');
+        const keyPos = clean.indexOf('"' + rootKey + '"');
+        if (keyPos !== -1) {
+          const bracket = clean.indexOf('[', keyPos);
+          arrayBuf = bracket !== -1 ? clean.slice(bracket + 1) : clean;
+        } else {
+          arrayBuf = clean;
+        }
+        leftover = '';
+      } else if (format === 'jsonl') {
+        // Cai no bloco JSONL abaixo
+      } else if (format === 'single') {
+        arrayBuf = combined;
+        leftover = '';
+      }
+    } else {
+      // Formatos que usam arrayBuf continuam acumulando
+      if (format === 'array' || format === 'root-array' || format === 'single') {
+        arrayBuf += text;
+      }
+    }
+
+    if (format === 'array' || format === 'root-array') {
+      if (!capped) {
+        const [objs, rest] = extractObjects(arrayBuf, MAX_RECORDS - records.length);
+        objs.forEach(pushRecord);
+        arrayBuf = rest;
+      } else {
+        const m = text.match(/\{/g);
+        total += m ? m.length : 0;
+      }
+    } else if (format === 'jsonl') {
+      const chunk = leftover + text;
+      const lines = chunk.split(/
+?
+|
+/);
+      leftover = lines.pop();
+      for (const line of lines) {
+        const l = line.trim();
+        if (!l || (l[0] !== '{' && l[0] !== '[')) continue;
+        try {
+          const parsed = JSON.parse(l);
+          if (Array.isArray(parsed)) parsed.forEach(pushRecord);
+          else pushRecord(parsed);
+        } catch(_) { total++; }
+      }
+    }
+
+    const pct = Math.min(99, Math.round(((offset + buffer.byteLength) / fileTotal) * 100));
+    self.postMessage({ type: 'progress', pct, count: records.length, total, capped });
+    return;
+  }
+
+  if (type === 'finish') {
+    // Processa sobra do JSONL
+    if (format === 'jsonl' && leftover.trim()) {
+      const l = leftover.trim();
+      if (l[0] === '{' || l[0] === '[') {
+        try {
+          const parsed = JSON.parse(l);
+          if (Array.isArray(parsed)) parsed.forEach(pushRecord);
+          else pushRecord(parsed);
+        } catch(_) {}
+      }
+    }
+    // Objeto único ou buffer residual
+    if (records.length === 0 && arrayBuf.trim()) {
+      try {
+        const parsed = JSON.parse(arrayBuf.trim());
+        if (Array.isArray(parsed)) {
+          parsed.forEach(pushRecord);
+        } else if (parsed && typeof parsed === 'object') {
+          const arrVal = Object.values(parsed).find(v => Array.isArray(v));
+          if (arrVal) arrVal.forEach(pushRecord);
+          else pushRecord(parsed);
+        }
+      } catch(_) {
+        // Tenta extrair objetos individualmente
+        const [objs] = extractObjects(arrayBuf, MAX_RECORDS);
+        objs.forEach(pushRecord);
+      }
+    }
+
+    self.postMessage({ type: 'done', records, fields: [...fieldSet], total, capped });
+    records = []; arrayBuf = ''; leftover = '';
+    return;
+  }
+};
+</script>
 </body>
 </html>
