@@ -7764,84 +7764,196 @@ const OP_PER_PAGE  = 24;
 })();
 
 function opLoadFile(file) {
-  const reader = new FileReader();
-  reader.onerror = () => alert('Erro ao ler o arquivo.');
-  reader.onload  = e  => opProcessText(e.target.result, file);
-  reader.readAsText(file, 'utf-8');
+  opAllRecords = []; opFiltered = []; opFields = []; opActiveFields = [];
+  opPage = 1;
 
-  /* Fallback latin-1 após 1.2s caso UTF-8 não encontre registros */
-  setTimeout(() => {
-    if (!opAllRecords.length) {
-      const r2 = new FileReader();
-      r2.onload = e2 => opProcessText(e2.target.result, file);
-      r2.readAsText(file, 'latin-1');
-    }
-  }, 1200);
+  /* Mostra progress bar */
+  opShowProgress(0, file.name, file.size);
+
+  /* Usa File.stream() + TextDecoderStream para ler em chunks sem travar */
+  if (file.stream && typeof TransformStream !== 'undefined') {
+    opStreamRead(file);
+  } else {
+    /* Fallback para browsers sem suporte a streams */
+    opChunkRead(file, 0, []);
+  }
 }
 
-function opProcessText(text, file) {
-  if (opAllRecords.length) return; /* evita duplo processamento */
+/* ── Leitura via Streams API (Chrome/Edge/Firefox modernos) ── */
+async function opStreamRead(file) {
+  const CHUNK     = 10 * 1024 * 1024; // 10 MB por vez
+  const total     = file.size;
+  let   offset    = 0;
+  let   leftover  = '';
+  let   records   = [];
+  let   fieldSet  = new Set();
+  let   parsed    = 0;
+
   try {
-    let records = [];
+    while (offset < total) {
+      const end    = Math.min(offset + CHUNK, total);
+      const blob   = file.slice(offset, end);
+      const text   = await blob.text();
+      offset       = end;
 
-    /* 1) JSON puro — array ou objeto único */
-    try {
-      const parsed = JSON.parse(text);
-      if (Array.isArray(parsed))                              records = parsed;
-      else if (typeof parsed === 'object' && parsed !== null) records = [parsed];
-    } catch(_) {}
+      const chunk  = leftover + text;
+      const lines  = chunk.split(/\r?\n|\r/);
+      leftover     = lines.pop(); // última linha pode estar incompleta
 
-    /* 2) JSONL — um objeto por linha */
-    if (!records.length) {
-      records = text
-        .split(/\r?\n|\r/)
-        .map(l => l.trim())
-        .filter(l => l.startsWith('{') || l.startsWith('['))
-        .map(l => { try { return JSON.parse(l); } catch(_) { return null; } })
-        .filter(Boolean)
-        .flat();
+      for (const line of lines) {
+        const l = line.trim();
+        if (!l || (!l.startsWith('{') && !l.startsWith('['))) continue;
+        try {
+          const obj = JSON.parse(l);
+          const arr = Array.isArray(obj) ? obj : [obj];
+          for (const r of arr) {
+            records.push(r);
+            if (fieldSet.size < 60) Object.keys(r).forEach(k => fieldSet.add(k));
+            parsed++;
+          }
+        } catch(_) {}
+      }
+
+      /* Atualiza progresso a cada chunk */
+      const pct = Math.round((offset / total) * 100);
+      opUpdateProgress(pct, parsed);
+
+      /* Yield para não travar a UI */
+      await new Promise(r => setTimeout(r, 0));
     }
 
-    /* 3) Objetos JSON concatenados sem separador explícito */
-    if (!records.length) {
-      const rx = /\{(?:[^{}]|\{[^{}]*\})*\}/g;
-      records = (text.match(rx) || [])
-        .map(m => { try { return JSON.parse(m); } catch(_) { return null; } })
-        .filter(Boolean);
+    /* Processa o que sobrou no leftover */
+    if (leftover.trim().startsWith('{') || leftover.trim().startsWith('[')) {
+      try {
+        const obj = JSON.parse(leftover.trim());
+        const arr = Array.isArray(obj) ? obj : [obj];
+        arr.forEach(r => { records.push(r); parsed++; });
+      } catch(_) {}
     }
 
-    if (!records.length) {
-      alert('Nenhum registro válido encontrado.\nVerifique se o arquivo contém JSON ou JSONL válido.');
-      return;
-    }
-
-    opAllRecords   = records;
-    opFiltered     = records;
-    opPage         = 1;
-
-    /* Detectar campos (amostra de até 500 registros) */
-    const fieldSet = new Set();
-    records.slice(0, 500).forEach(r => Object.keys(r).forEach(k => fieldSet.add(k)));
-    opFields       = [...fieldSet];
-    opActiveFields = [...opFields];
-
-    /* Atualizar UI */
-    document.getElementById('opFileName').textContent = file.name;
-    document.getElementById('opFileMeta').textContent =
-      `${records.length.toLocaleString('pt-BR')} registros · ${opFields.length} campos · ${(file.size / 1024).toFixed(1)} KB`;
-    document.getElementById('opFileBar').classList.add('visible');
-    document.getElementById('opDropzone').style.display   = 'none';
-    document.getElementById('opSearchPanel').style.display = 'block';
-    document.getElementById('opSearchInput').value       = '';
-    document.getElementById('opSearchInput').placeholder =
-      `Buscar em ${records.length.toLocaleString('pt-BR')} registros...`;
-
-    opBuildFilterChips();
-    opRender();
+    opFinishLoad(records, [...fieldSet], file);
 
   } catch(err) {
-    alert('Erro ao processar o arquivo: ' + err.message);
+    opHideProgress();
+    alert('Erro ao ler o arquivo: ' + err.message);
   }
+}
+
+/* ── Fallback: leitura em fatias com FileReader ── */
+function opChunkRead(file, offset, records) {
+  const CHUNK   = 8 * 1024 * 1024;
+  const total   = file.size;
+  const fieldSet = new Set();
+
+  function readNext(off, leftover, recs) {
+    if (off >= total) {
+      opFinishLoad(recs, [...fieldSet], file);
+      return;
+    }
+    const end    = Math.min(off + CHUNK, total);
+    const blob   = file.slice(off, end);
+    const reader = new FileReader();
+    reader.onload = e => {
+      const chunk = leftover + e.target.result;
+      const lines = chunk.split(/\r?\n|\r/);
+      const next  = lines.pop();
+      for (const line of lines) {
+        const l = line.trim();
+        if (!l || (!l.startsWith('{') && !l.startsWith('['))) continue;
+        try {
+          const obj = JSON.parse(l);
+          const arr = Array.isArray(obj) ? obj : [obj];
+          arr.forEach(r => {
+            recs.push(r);
+            if (fieldSet.size < 60) Object.keys(r).forEach(k => fieldSet.add(k));
+          });
+        } catch(_) {}
+      }
+      const pct = Math.round((end / total) * 100);
+      opUpdateProgress(pct, recs.length);
+      setTimeout(() => readNext(end, next, recs), 0);
+    };
+    reader.readAsText(blob, 'utf-8');
+  }
+
+  opShowProgress(0, file.name, total);
+  readNext(0, '', []);
+}
+
+/* ── Progress UI ── */
+function opShowProgress(pct, name, size) {
+  const dz = document.getElementById('opDropzone');
+  dz.innerHTML = `
+    <div class="op-dropzone-icon" style="background:rgba(0,229,160,0.1);border-color:rgba(0,229,160,0.3)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+    </div>
+    <div class="op-dropzone-title" id="opProgressTitle">Carregando ${name}…</div>
+    <div style="margin:14px auto 0;width:100%;max-width:340px;height:6px;background:var(--border);border-radius:6px;overflow:hidden">
+      <div id="opProgressBar" style="height:100%;width:0%;background:var(--green);border-radius:6px;transition:width 0.3s"></div>
+    </div>
+    <div class="op-dropzone-sub" style="margin-top:10px">
+      <span id="opProgressPct">0%</span> — <span id="opProgressRecs">0 registros lidos</span>
+      <br><strong>${(size/1024/1024).toFixed(1)} MB</strong> · lendo em chunks de 10 MB
+    </div>`;
+}
+
+function opUpdateProgress(pct, recs) {
+  const bar   = document.getElementById('opProgressBar');
+  const pctEl = document.getElementById('opProgressPct');
+  const recEl = document.getElementById('opProgressRecs');
+  const titEl = document.getElementById('opProgressTitle');
+  if (bar)   bar.style.width  = pct + '%';
+  if (pctEl) pctEl.textContent = pct + '%';
+  if (recEl) recEl.textContent = recs.toLocaleString('pt-BR') + ' registros lidos';
+  if (pct >= 100 && titEl) titEl.textContent = 'Finalizando…';
+}
+
+function opHideProgress() {
+  /* Restaura dropzone original se cancelar */
+  const dz = document.getElementById('opDropzone');
+  dz.innerHTML = `
+    <input type="file" id="opFileInput" accept=".json,.jsonl,.txt" />
+    <div class="op-dropzone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+    <div class="op-dropzone-title">Arraste seu arquivo aqui ou clique para selecionar</div>
+    <div class="op-dropzone-sub">Suporta <strong>.json</strong> e <strong>.jsonl</strong></div>`;
+  document.getElementById('opFileInput').addEventListener('change', e => {
+    if (e.target.files[0]) opLoadFile(e.target.files[0]);
+  });
+}
+
+/* ── Finaliza após leitura completa ── */
+function opFinishLoad(records, fields, file) {
+  if (!records.length) {
+    opHideProgress();
+    alert('Nenhum registro JSON válido encontrado no arquivo.\nVerifique se é um arquivo .json ou .jsonl com um objeto por linha.');
+    return;
+  }
+
+  opAllRecords   = records;
+  opFiltered     = records;
+  opPage         = 1;
+  opFields       = fields.length ? fields : (() => {
+    const s = new Set();
+    records.slice(0, 200).forEach(r => Object.keys(r).forEach(k => s.add(k)));
+    return [...s];
+  })();
+  opActiveFields = [...opFields];
+
+  /* Restaura dropzone e mostra barra de arquivo */
+  const dz = document.getElementById('opDropzone');
+  dz.style.display = 'none';
+
+  document.getElementById('opFileName').textContent = file.name;
+  document.getElementById('opFileMeta').textContent =
+    `${records.length.toLocaleString('pt-BR')} registros · ${opFields.length} campos · ${(file.size / 1024 / 1024).toFixed(1)} MB`;
+  document.getElementById('opFileBar').classList.add('visible');
+  document.getElementById('opSearchPanel').style.display = 'block';
+  document.getElementById('opSearchInput').value = '';
+  document.getElementById('opSearchInput').placeholder =
+    `Buscar em ${records.length.toLocaleString('pt-BR')} registros...`;
+
+  opBuildFilterChips();
+  opRender();
 }
 
 function opClearFile() {
