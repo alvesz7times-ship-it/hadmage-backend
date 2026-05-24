@@ -1879,7 +1879,7 @@
     margin-top: 18px;
   }
   .op-search-input {
-    flex: 1; min-width: 220px;
+    width: 100%;
     background: var(--bg); border: 1px solid var(--border);
     border-radius: 10px; color: var(--text); font-family: var(--mono);
     font-size: 14px; padding: 12px 16px; outline: none;
@@ -3078,8 +3078,8 @@
           placeholder="Buscar por qualquer campo — nome, telefone, e-mail, ID..."
           oninput="opSearchDebounced()"
         />
-        <div class="op-search-count" id="opSearchCount"></div>
       </div>
+      <div class="op-search-count" id="opSearchCount" style="margin-top:6px;text-align:right"></div>
 
       <div class="op-filter-row" id="opFilterRow"></div>
 
@@ -7969,7 +7969,7 @@ function opSearch() {
     opPage = 1;
     opRender();
     document.getElementById('opSearchCount').innerHTML =
-      `<strong>${opTotalInFile.toLocaleString('pt-BR')}</strong> registros — digite para buscar`;
+      `<strong>${opTotalInFile.toLocaleString('pt-BR')}</strong> registros`;
     return;
   }
 
@@ -8062,7 +8062,7 @@ function opRender() {
   if (!_opSearchWorker) {
     document.getElementById('opSearchCount').innerHTML = term
       ? `<strong>${total.toLocaleString('pt-BR')}</strong> encontrados em ${opTotalInFile.toLocaleString('pt-BR')} registros`
-      : `<strong>${opTotalInFile.toLocaleString('pt-BR')}</strong> registros · digite para buscar`;
+      : `<strong>${opTotalInFile.toLocaleString('pt-BR')}</strong> registros`;
   }
 
   const grid  = document.getElementById('opGrid');
