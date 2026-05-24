@@ -7438,11 +7438,13 @@ function ipCarregarHistorico(addr) {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   OSINT PLUS — Upload & Search JSON  (versão memory-safe v5)
-   ─ Lê em chunks de 8 MB, nunca carrega o arquivo inteiro.
-   ─ Cap de OP_MAX_RECORDS registros em memória (evita OOM).
+   OSINT PLUS — Upload & Search JSON  (versão memory-safe v6)
+   ─ Web Worker dedicado: parsing 100% fora da thread UI.
+   ─ Suporta arquivos até 2 GB sem travar o navegador.
+   ─ Chunks de 32 MB transferidos via ArrayBuffer (zero-copy).
+   ─ Limite elevado para 2.000.000 registros em RAM.
    ─ Suporta JSONL e JSON-array (mesmo sem quebras de linha).
-   ─ Busca debounced para não travar em bases grandes.
+   ─ Busca debounced + renderização por DocumentFragment.
    ════════════════════════════════════════════════════════════════ */
 let opAllRecords    = [];   // registros em memória (max OP_MAX_RECORDS)
 let opFiltered      = [];   // resultado da busca atual
@@ -7452,10 +7454,153 @@ let opCurrentRecord = null; // registro aberto no modal
 let opPage          = 1;
 let opTotalInFile   = 0;    // total real do arquivo (pode > OP_MAX_RECORDS)
 let _opSearchTimer  = null; // debounce da busca
+let _opWorker       = null; // Web Worker ativo
 
-const OP_PER_PAGE   = 24;
-const OP_MAX_RECORDS = 200_000; // limite seguro de registros em RAM
-const OP_CHUNK      = 8 * 1024 * 1024; // 8 MB por chunk
+const OP_PER_PAGE    = 24;
+const OP_MAX_RECORDS = 2_000_000; // 2 milhões de registros em RAM
+const OP_CHUNK       = 32 * 1024 * 1024; // 32 MB por chunk
+
+/* ── Código do Worker como Blob (sem arquivo externo) ── */
+const _opWorkerCode = `
+/* ════════════════════════════════════════════════
+   OSINT Plus Worker — parser incremental de JSON/JSONL
+   Roda fora da thread principal; nunca trava a UI.
+════════════════════════════════════════════════ */
+const MAX_RECORDS = 2_000_000;
+let records   = [];
+let fieldSet  = new Set();
+let total     = 0;
+let leftover  = '';
+let isArray   = null; // null=desconhecido, true=JSON-array, false=JSONL
+let arrayBuf  = '';
+let capped    = false;
+const decoder = new TextDecoder('utf-8');
+
+/* Extrai objetos completos de uma string, retorna [objetos[], resto] */
+function extractObjects(str, limit) {
+  const out = [];
+  let depth = 0, inStr = false, esc = false, start = -1, i = 0;
+  while (i < str.length) {
+    const ch = str[i];
+    if (esc)              { esc = false; i++; continue; }
+    if (ch === '\\\\' && inStr) { esc = true;  i++; continue; }
+    if (ch === '"')       { inStr = !inStr; i++; continue; }
+    if (inStr)            { i++; continue; }
+    if (ch === '{')       { if (depth === 0) start = i; depth++; }
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        if (out.length < limit) {
+          try {
+            const obj = JSON.parse(str.slice(start, i + 1));
+            if (obj && typeof obj === 'object' && !Array.isArray(obj)) out.push(obj);
+          } catch(_) {}
+        }
+        start = -1;
+      }
+    }
+    i++;
+  }
+  const rest = (start !== -1) ? str.slice(start) : str.slice(i);
+  return [out, rest];
+}
+
+self.onmessage = function(e) {
+  const { type, buffer, fileTotal, offset } = e.data;
+
+  if (type === 'reset') {
+    records = []; fieldSet = new Set(); total = 0;
+    leftover = ''; isArray = null; arrayBuf = ''; capped = false;
+    return;
+  }
+
+  if (type === 'chunk') {
+    const text = decoder.decode(new Uint8Array(buffer), { stream: true });
+
+    /* Detecta formato na primeira chamada */
+    if (isArray === null) {
+      const first = (leftover + text).trimStart()[0];
+      isArray = (first === '[');
+    }
+
+    if (isArray) {
+      /* ── JSON-array: parser incremental sem acumular o arquivo inteiro ── */
+      if (!capped) {
+        arrayBuf += text;
+        const limit = MAX_RECORDS - records.length;
+        const [objs, rest] = extractObjects(arrayBuf, limit);
+        objs.forEach(obj => {
+          records.push(obj);
+          total++;
+          if (fieldSet.size < 80) Object.keys(obj).forEach(k => fieldSet.add(k));
+        });
+        arrayBuf = rest;
+        if (records.length >= MAX_RECORDS) capped = true;
+      } else {
+        /* Conta sem guardar — estimativa rápida via regex */
+        const m = text.match(/\\{/g);
+        total += m ? m.length : 0;
+      }
+    } else {
+      /* ── JSONL: linha por linha ── */
+      const chunk = leftover + text;
+      const lines = chunk.split(/\\r?\\n|\\r/);
+      leftover = lines.pop();
+
+      for (const line of lines) {
+        const l = line.trim();
+        if (!l || (l[0] !== '{' && l[0] !== '[')) continue;
+        total++;
+        if (capped) continue;
+        try {
+          const obj = JSON.parse(l);
+          const arr = Array.isArray(obj) ? obj : [obj];
+          for (const r of arr) {
+            if (!r || typeof r !== 'object') continue;
+            records.push(r);
+            if (fieldSet.size < 80) Object.keys(r).forEach(k => fieldSet.add(k));
+            if (records.length >= MAX_RECORDS) { capped = true; break; }
+          }
+        } catch(_) {}
+      }
+    }
+
+    const pct = Math.round(((offset + buffer.byteLength) / fileTotal) * 100);
+    self.postMessage({ type: 'progress', pct, count: records.length, total, capped });
+    return;
+  }
+
+  if (type === 'finish') {
+    /* Processa sobra do JSONL */
+    if (!isArray && leftover.trim()) {
+      const l = leftover.trim();
+      if ((l[0] === '{' || l[0] === '[') && !capped) {
+        try {
+          const obj = JSON.parse(l);
+          const arr = Array.isArray(obj) ? obj : [obj];
+          arr.forEach(r => { if (r && typeof r === 'object') records.push(r); });
+          total++;
+        } catch(_) {}
+      }
+    }
+    self.postMessage({
+      type: 'done',
+      records,
+      fields: [...fieldSet],
+      total,
+      capped
+    });
+    /* Libera memória no worker */
+    records = []; arrayBuf = ''; leftover = '';
+    return;
+  }
+};
+`;
+
+function _opMakeWorker() {
+  const blob = new Blob([_opWorkerCode], { type: 'application/javascript' });
+  return new Worker(URL.createObjectURL(blob));
+}
 
 /* ── Drag & Drop ── */
 (function(){
@@ -7476,125 +7621,52 @@ const OP_CHUNK      = 8 * 1024 * 1024; // 8 MB por chunk
 function opLoadFile(file) {
   opAllRecords = []; opFiltered = []; opFields = []; opActiveFields = [];
   opPage = 1; opTotalInFile = 0;
+  if (_opWorker) { _opWorker.terminate(); _opWorker = null; }
   opShowProgress(file.name, file.size);
   opStreamRead(file);
 }
 
 /* ─────────────────────────────────────────────
-   Leitor em chunks — funciona com JSONL e com
-   JSON-array compacto (sem quebras de linha).
-   Nunca mantém o arquivo completo em string.
+   Leitura em chunks via Web Worker.
+   A thread principal só lê o Blob e envia
+   ArrayBuffers para o Worker — zero bloqueio.
 ───────────────────────────────────────────── */
 async function opStreamRead(file) {
-  const total    = file.size;
-  let offset     = 0;
-  let leftover   = '';
-  let records    = [];
-  let fieldSet   = new Set();
-  let capped     = false;
-  /* Para JSON-array compacto: detectamos se o arquivo começa com '[' */
-  let isJsonArray   = null; // null = ainda não decidido
-  let arrayBuf      = '';   // buffer acumulado apenas para JSON-array
-  let arrayDone     = false;
+  const total  = file.size;
+  let   offset = 0;
+
+  _opWorker = _opMakeWorker();
+  _opWorker.postMessage({ type: 'reset' });
+
+  _opWorker.onmessage = function(e) {
+    const msg = e.data;
+    if (msg.type === 'progress') {
+      opUpdateProgress(msg.pct, msg.count, msg.capped);
+    } else if (msg.type === 'done') {
+      _opWorker.terminate(); _opWorker = null;
+      opFinishLoad(msg.records, msg.fields, file, msg.capped, msg.total);
+    }
+  };
+
+  _opWorker.onerror = function(err) {
+    _opWorker.terminate(); _opWorker = null;
+    opHideProgress();
+    alert('Erro no worker: ' + err.message);
+  };
 
   try {
     while (offset < total) {
-      const end  = Math.min(offset + OP_CHUNK, total);
-      const text = await file.slice(offset, end).text();
-      offset     = end;
-
-      /* Detecta o formato na primeira leitura */
-      if (isJsonArray === null) {
-        const firstChar = (leftover + text).trimStart()[0];
-        isJsonArray = (firstChar === '[');
-      }
-
-      if (isJsonArray && !arrayDone) {
-        /* ── Modo JSON-array: acumula até o limite e faz parse único ── */
-        /* Evitamos acumular o arquivo inteiro: paramos quando temos dados suficientes */
-        if (records.length < OP_MAX_RECORDS) {
-          arrayBuf += text;
-          /* Tenta fazer parse incremental: extrai objetos completos do buffer */
-          let depth = 0, inStr = false, esc = false, start = -1;
-          let i = 0;
-          while (i < arrayBuf.length && records.length < OP_MAX_RECORDS) {
-            const ch = arrayBuf[i];
-            if (esc)        { esc = false; i++; continue; }
-            if (ch === '\\' && inStr) { esc = true; i++; continue; }
-            if (ch === '"') { inStr = !inStr; i++; continue; }
-            if (inStr)      { i++; continue; }
-            if (ch === '{') { if (depth === 0) start = i; depth++; }
-            else if (ch === '}') {
-              depth--;
-              if (depth === 0 && start !== -1) {
-                try {
-                  const obj = JSON.parse(arrayBuf.slice(start, i + 1));
-                  if (obj && typeof obj === 'object') {
-                    records.push(obj);
-                    opTotalInFile++;
-                    if (fieldSet.size < 60) Object.keys(obj).forEach(k => fieldSet.add(k));
-                  }
-                } catch(_) {}
-                start = -1;
-              }
-            }
-            i++;
-          }
-          /* Descarta a parte já processada para não crescer a string */
-          if (start === -1) arrayBuf = arrayBuf.slice(i);
-          else              arrayBuf = arrayBuf.slice(start); // guarda objeto em andamento
-        } else {
-          /* Já temos o máximo — conta o restante sem guardar */
-          const objectMatches = text.match(/\{[^{}]*\}/g);
-          opTotalInFile += (objectMatches ? objectMatches.length : 0);
-          capped = true;
-        }
-
-      } else {
-        /* ── Modo JSONL: processa linha a linha ── */
-        const chunk = leftover + text;
-        const lines = chunk.split(/\r?\n|\r/);
-        leftover = lines.pop(); // última linha pode estar incompleta
-
-        for (const line of lines) {
-          const l = line.trim();
-          if (!l || (!l.startsWith('{') && !l.startsWith('['))) continue;
-          opTotalInFile++;
-          if (records.length >= OP_MAX_RECORDS) { capped = true; continue; }
-          try {
-            const obj = JSON.parse(l);
-            const arr = Array.isArray(obj) ? obj : [obj];
-            for (const r of arr) {
-              if (!r || typeof r !== 'object') continue;
-              records.push(r);
-              if (fieldSet.size < 60) Object.keys(r).forEach(k => fieldSet.add(k));
-            }
-          } catch(_) {}
-        }
-      }
-
-      opUpdateProgress(Math.round((offset / total) * 100), records.length, capped);
-      await new Promise(r => setTimeout(r, 0)); // yield UI
+      const end    = Math.min(offset + OP_CHUNK, total);
+      const buffer = await file.slice(offset, end).arrayBuffer();
+      /* Transferência zero-copy: o buffer vai para o worker sem copiar */
+      _opWorker.postMessage({ type: 'chunk', buffer, fileTotal: total, offset }, [buffer]);
+      offset = end;
+      /* Yield mínimo para manter a UI responsiva entre chunks */
+      await new Promise(r => setTimeout(r, 0));
     }
-
-    /* Processa leftover final do JSONL */
-    if (!isJsonArray && leftover.trim()) {
-      const l = leftover.trim();
-      if (l.startsWith('{') || l.startsWith('[')) {
-        opTotalInFile++;
-        if (records.length < OP_MAX_RECORDS) {
-          try {
-            const obj = JSON.parse(l);
-            const arr = Array.isArray(obj) ? obj : [obj];
-            arr.forEach(r => { if (r && typeof r === 'object') records.push(r); });
-          } catch(_) {}
-        }
-      }
-    }
-
-    opFinishLoad(records, [...fieldSet], file, capped);
-
+    _opWorker.postMessage({ type: 'finish' });
   } catch(err) {
+    if (_opWorker) { _opWorker.terminate(); _opWorker = null; }
     opHideProgress();
     alert('Erro ao ler o arquivo: ' + err.message);
   }
@@ -7602,6 +7674,9 @@ async function opStreamRead(file) {
 
 /* ── Progress UI ── */
 function opShowProgress(name, size) {
+  const mb = size >= 1024*1024*1024
+    ? (size/1024/1024/1024).toFixed(2) + ' GB'
+    : (size/1024/1024).toFixed(1) + ' MB';
   document.getElementById('opDropzone').innerHTML = `
     <div class="op-dropzone-icon" style="background:rgba(0,229,160,0.1);border-color:rgba(0,229,160,0.3)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin">
@@ -7610,11 +7685,11 @@ function opShowProgress(name, size) {
     </div>
     <div class="op-dropzone-title" id="opProgressTitle">Carregando ${_escO(name)}…</div>
     <div style="margin:14px auto 0;width:100%;max-width:340px;height:6px;background:var(--border);border-radius:6px;overflow:hidden">
-      <div id="opProgressBar" style="height:100%;width:0%;background:var(--green);border-radius:6px;transition:width 0.25s"></div>
+      <div id="opProgressBar" style="height:100%;width:0%;background:var(--green);border-radius:6px;transition:width 0.3s"></div>
     </div>
     <div class="op-dropzone-sub" style="margin-top:10px">
       <span id="opProgressPct">0%</span> — <span id="opProgressRecs">0 registros lidos</span>
-      <br><strong>${(size/1024/1024).toFixed(1)} MB</strong> · chunks de 8 MB, sem travar memória
+      <br><strong>${mb}</strong> · parsing em Web Worker, UI não trava
     </div>`;
 }
 
@@ -7623,10 +7698,10 @@ function opUpdateProgress(pct, recs, capped) {
   const p = document.getElementById('opProgressPct');
   const r = document.getElementById('opProgressRecs');
   const t = document.getElementById('opProgressTitle');
-  if (b) b.style.width = pct + '%';
+  if (b) b.style.width = Math.min(pct, 99) + '%';
   if (p) p.textContent = pct + '%';
   if (r) r.textContent = recs.toLocaleString('pt-BR') + ' registros' + (capped ? ` (limite ${OP_MAX_RECORDS.toLocaleString('pt-BR')})` : '');
-  if (pct >= 100 && t) t.textContent = 'Finalizando…';
+  if (pct >= 99 && t) t.textContent = 'Finalizando…';
 }
 
 function opHideProgress() {
@@ -7642,19 +7717,20 @@ function opHideProgress() {
 }
 
 /* ── Finaliza após leitura ── */
-function opFinishLoad(records, fields, file, capped) {
+function opFinishLoad(records, fields, file, capped, workerTotal) {
   if (!records.length) {
     opHideProgress();
     alert('Nenhum registro JSON válido encontrado.\nVerifique se é .json (array) ou .jsonl (um objeto por linha).');
     return;
   }
 
+  opTotalInFile = workerTotal || records.length;
   opAllRecords  = records;
   opFiltered    = records;
   opPage        = 1;
   opFields      = fields.length ? fields : (() => {
     const s = new Set();
-    records.slice(0, 100).forEach(r => Object.keys(r).forEach(k => s.add(k)));
+    records.slice(0, 200).forEach(r => Object.keys(r).forEach(k => s.add(k)));
     return [...s];
   })();
   opActiveFields = [...opFields];
@@ -7662,13 +7738,17 @@ function opFinishLoad(records, fields, file, capped) {
   const dz = document.getElementById('opDropzone');
   dz.style.display = 'none';
 
+  const sizeStr = file.size >= 1024*1024*1024
+    ? (file.size/1024/1024/1024).toFixed(2) + ' GB'
+    : (file.size/1024/1024).toFixed(1) + ' MB';
+
   const totalLabel = capped
-    ? `${records.length.toLocaleString('pt-BR')} de ${opTotalInFile.toLocaleString('pt-BR')} registros (limite de memória)`
+    ? `${records.length.toLocaleString('pt-BR')} de ${opTotalInFile.toLocaleString('pt-BR')} registros (cap 2M)`
     : `${records.length.toLocaleString('pt-BR')} registros`;
 
   document.getElementById('opFileName').textContent = file.name;
   document.getElementById('opFileMeta').textContent =
-    `${totalLabel} · ${opFields.length} campos · ${(file.size/1024/1024).toFixed(1)} MB`;
+    `${totalLabel} · ${opFields.length} campos · ${sizeStr}`;
   document.getElementById('opFileBar').classList.add('visible');
   document.getElementById('opSearchPanel').style.display = 'block';
   document.getElementById('opSearchInput').value = '';
@@ -7678,7 +7758,7 @@ function opFinishLoad(records, fields, file, capped) {
   if (capped) {
     const warn = document.getElementById('opFileMeta');
     warn.style.color = 'var(--yellow)';
-    warn.title = `Arquivo muito grande: exibindo os primeiros ${OP_MAX_RECORDS.toLocaleString()} registros de ${opTotalInFile.toLocaleString()} para proteger a memória.`;
+    warn.title = `Arquivo grande: carregados ${records.length.toLocaleString()} de ${opTotalInFile.toLocaleString()} registros. Limite de 2 milhões por sessão.`;
   }
 
   opBuildFilterChips();
@@ -7686,6 +7766,7 @@ function opFinishLoad(records, fields, file, capped) {
 }
 
 function opClearFile() {
+  if (_opWorker) { _opWorker.terminate(); _opWorker = null; }
   opAllRecords = []; opFiltered = []; opFields = []; opActiveFields = [];
   opPage = 1; opTotalInFile = 0;
   if (_opSearchTimer) clearTimeout(_opSearchTimer);
