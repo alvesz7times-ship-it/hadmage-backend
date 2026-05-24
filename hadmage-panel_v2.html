@@ -7593,15 +7593,28 @@ function _opStreamReadSingle(file) {
     const worker = _opMakeWorker();
     worker.postMessage({ type: 'reset' });
 
+    let _batchedRecords = [];
+    let _batchedFields  = new Set();
+
     worker.onmessage = function(e) {
       const msg = e.data;
       if (msg.type === 'progress') {
         // atualiza o item da lista com progresso
         const entry = _opFileQueue.find(en => en.status === 'loading');
         if (entry) { entry._pct = msg.pct; entry._count = msg.count; _opRenderFileList(); }
+      } else if (msg.type === 'batch') {
+        // acumula registros recebidos em partes (evita DataCloneError com muitos registros)
+        for (const r of msg.records) _batchedRecords.push(r);
+        if (msg.fields) msg.fields.forEach(f => _batchedFields.add(f));
       } else if (msg.type === 'done') {
         worker.terminate();
-        resolve({ records: msg.records, fields: msg.fields, total: msg.total, capped: msg.capped });
+        if (msg.fields) msg.fields.forEach(f => _batchedFields.add(f));
+        resolve({
+          records: _batchedRecords,
+          fields:  [..._batchedFields],
+          total:   msg.total,
+          capped:  msg.capped
+        });
       }
     };
     worker.onerror = function(err) {
@@ -8314,7 +8327,8 @@ async function osintUserConsultar() {
      5. CSV:                   col1,col2\nval1,val2
    Roda fora da thread principal — UI nunca trava.
 ════════════════════════════════════════════════ */
-const MAX_RECORDS = 15000000;
+const MAX_RECORDS  = 15000000;
+const FLUSH_BATCH  = 50000; // envia 50k registros por vez para evitar DataCloneError
 let records  = [];
 let fieldSet = new Set();
 let total    = 0;
@@ -8325,6 +8339,16 @@ let capped   = false;
 let rootKey  = null;
 let csvHeaders = null; // cabeçalhos do CSV
 const decoder = new TextDecoder('utf-8');
+
+function flushRecords(force) {
+  if (force || records.length >= FLUSH_BATCH) {
+    if (records.length > 0) {
+      self.postMessage({ type: 'batch', records, fields: [...fieldSet] });
+      records  = [];
+      fieldSet = new Set();
+    }
+  }
+}
 
 /* ── Parser CSV robusto: suporta aspas, vírgula e ponto-e-vírgula ── */
 function csvDetectDelimiter(line) {
@@ -8443,7 +8467,8 @@ function pushRecord(obj) {
   records.push(obj);
   total++;
   if (fieldSet.size < 100) Object.keys(obj).forEach(k => fieldSet.add(k));
-  if (records.length >= MAX_RECORDS) capped = true;
+  if (total >= MAX_RECORDS) capped = true;
+  flushRecords(false);
 }
 
 self.onmessage = function(e) {
@@ -8571,7 +8596,10 @@ self.onmessage = function(e) {
       }
     }
 
-    self.postMessage({ type: 'done', records, fields: [...fieldSet], total, capped });
+    // Envia registros restantes antes de finalizar
+    flushRecords(true);
+
+    self.postMessage({ type: 'done', fields: [...fieldSet], total, capped });
     records = []; arrayBuf = ''; leftover = '';
     return;
   }
