@@ -7497,23 +7497,27 @@ function ipCarregarHistorico(addr) {
    ─ Suporta JSONL e JSON-array (mesmo sem quebras de linha).
    ─ Busca debounced + renderização por DocumentFragment.
    ════════════════════════════════════════════════════════════════ */
-let opAllRecords    = [];   // registros em memória (max OP_MAX_RECORDS)
+let opAllRecords    = [];   // não usado para armazenar — apenas compatibilidade
 let opFiltered      = [];   // resultado da busca atual
 let opFields        = [];   // campos detectados
 let opActiveFields  = [];   // campos ativos no filtro
 let opCurrentRecord = null; // registro aberto no modal
 let opPage          = 1;
-let opTotalInFile   = 0;    // total real do arquivo (pode > OP_MAX_RECORDS)
+let opTotalInFile   = 0;    // total real de registros nos arquivos
 let _opSearchTimer  = null; // debounce da busca
 let _opWorker       = null; // Web Worker ativo
 
+/* ── Streaming search state ── */
+let _opSearchWorker  = null;  // worker dedicado à busca em streaming
+let _opSearchVersion = 0;     // versão da busca (cancela buscas antigas)
+
 /* ── Multi-arquivo ── */
-let _opFileQueue    = [];   // [{file, id, status, records, fields, total, capped}]
+let _opFileQueue    = [];   // [{file, id, status, fields, total, capped}] — SEM records
 let _opFileIdSeq    = 0;    // id sequencial para cada arquivo
 let _opProcessing   = false;// true enquanto processa a fila
 
 const OP_PER_PAGE    = 24;
-const OP_MAX_RECORDS = 15_000_000; // 15 milhões de registros em RAM
+const OP_MAX_RECORDS = 5_000_000; // cap de resultados de busca em memória
 const OP_CHUNK       = 32 * 1024 * 1024; // 32 MB por chunk
 
 /* ── Código do Worker como Blob (sem arquivo externo) ── */
@@ -7593,8 +7597,7 @@ function _opStreamReadSingle(file) {
     const worker = _opMakeWorker();
     worker.postMessage({ type: 'reset' });
 
-    let _batchedRecords = [];
-    let _batchedFields  = new Set();
+    let _scanFields = new Set();
 
     worker.onmessage = function(e) {
       const msg = e.data;
@@ -7603,15 +7606,14 @@ function _opStreamReadSingle(file) {
         const entry = _opFileQueue.find(en => en.status === 'loading');
         if (entry) { entry._pct = msg.pct; entry._count = msg.count; _opRenderFileList(); }
       } else if (msg.type === 'batch') {
-        // acumula registros recebidos em partes (evita DataCloneError com muitos registros)
-        for (const r of msg.records) _batchedRecords.push(r);
-        if (msg.fields) msg.fields.forEach(f => _batchedFields.add(f));
+        // apenas coleta os campos — não armazena registros
+        if (msg.fields) msg.fields.forEach(f => _scanFields.add(f));
       } else if (msg.type === 'done') {
         worker.terminate();
-        if (msg.fields) msg.fields.forEach(f => _batchedFields.add(f));
+        if (msg.fields) msg.fields.forEach(f => _scanFields.add(f));
         resolve({
-          records: _batchedRecords,
-          fields:  [..._batchedFields],
+          records: [], // não guardamos registros — busca usa streaming
+          fields:  [..._scanFields],
           total:   msg.total,
           capped:  msg.capped
         });
@@ -7642,76 +7644,53 @@ function _opStreamReadSingle(file) {
   });
 }
 
-/* ── Merge de todos os arquivos prontos → opAllRecords ── */
+/* ── Merge de todos os arquivos prontos — apenas metadados, SEM registros em RAM ── */
 function _opMergeAndShow() {
   const doneEntries = _opFileQueue.filter(e => e.status === 'done');
   if (!doneEntries.length) return;
 
-  const merged = [];
   const fieldsMerged = new Set();
   let totalMerged = 0;
-  let anyCapped = false;
 
   for (const entry of doneEntries) {
-    for (const rec of entry.records) {
-      if (merged.length >= OP_MAX_RECORDS) { anyCapped = true; break; }
-      merged.push(rec);
-    }
     totalMerged += entry.total;
-    if (entry.capped) anyCapped = true;
     entry.fields.forEach(f => fieldsMerged.add(f));
   }
 
   opTotalInFile  = totalMerged;
-  opAllRecords   = merged;
-  opFiltered     = merged;
+  opAllRecords   = []; // vazio — busca usa streaming diretamente nos arquivos
+  opFiltered     = [];
   opPage         = 1;
-  opFields       = fieldsMerged.size ? [...fieldsMerged] : (() => {
-    const s = new Set();
-    merged.slice(0, 200).forEach(r => Object.keys(r).forEach(k => s.add(k)));
-    return [...s];
-  })();
+  opFields       = [...fieldsMerged];
   opActiveFields = [...opFields];
 
   const totalFiles = doneEntries.length;
-  const totalRecs  = merged.length;
   const totalSize  = doneEntries.reduce((a, e) => a + e.file.size, 0);
   const sizeStr    = totalSize >= 1024*1024*1024
     ? (totalSize/1024/1024/1024).toFixed(2) + ' GB'
     : (totalSize/1024/1024).toFixed(1) + ' MB';
 
-  const totalLabel = anyCapped
-    ? `${totalRecs.toLocaleString('pt-BR')} de ${opTotalInFile.toLocaleString('pt-BR')} registros (cap 15M)`
-    : `${totalRecs.toLocaleString('pt-BR')} registros`;
-
   document.getElementById('opFileName').textContent =
     totalFiles === 1 ? doneEntries[0].file.name : `${totalFiles} arquivos carregados`;
   document.getElementById('opFileMeta').textContent =
-    `${totalLabel} · ${opFields.length} campos · ${sizeStr}`;
-
-  const metaEl = document.getElementById('opFileMeta');
-  if (anyCapped) {
-    metaEl.style.color = 'var(--yellow)';
-    metaEl.title = `Limite de 2M atingido. Total real: ${opTotalInFile.toLocaleString()}.`;
-  } else {
-    metaEl.style.color = '';
-    metaEl.title = '';
-  }
+    `${opTotalInFile.toLocaleString('pt-BR')} registros · ${opFields.length} campos · ${sizeStr}`;
+  document.getElementById('opFileMeta').style.color = '';
+  document.getElementById('opFileMeta').title = '';
 
   document.getElementById('opFileBar').classList.add('visible');
   document.getElementById('opSearchPanel').style.display = 'block';
   document.getElementById('opSearchInput').value = '';
   document.getElementById('opSearchInput').placeholder =
-    `Buscar em ${totalRecs.toLocaleString('pt-BR')} registros...`;
+    `Buscar em ${opTotalInFile.toLocaleString('pt-BR')} registros...`;
 
   opBuildFilterChips();
-  opRender();
+  opRender(); // renderiza estado vazio (aguardando busca)
 
-  // Salva automaticamente no IndexedDB após merge
+  // Salva metadados no IndexedDB (sem registros)
   const fileNames = doneEntries.map(e => e.file.name).join(', ');
   const now       = new Date().toLocaleString('pt-BR');
   const saveMeta  = { savedAt: now, fileNames, total: opTotalInFile, fields: opFields.length };
-  _opAutoSave(merged, saveMeta);
+  _opAutoSave([], saveMeta); // salva apenas metadados
   // Esconde o banner de base salva (nova base substituiu)
   document.getElementById('opSavedBanner').style.display = 'none';
 }
@@ -7808,6 +7787,8 @@ function opFinishLoad(records, fields, file, capped, workerTotal) {
 
 function opClearFile() {
   if (_opWorker) { _opWorker.terminate(); _opWorker = null; }
+  if (_opSearchWorker) { _opSearchWorker.terminate(); _opSearchWorker = null; }
+  _opSearchVersion++; // invalida qualquer busca em andamento
   _opFileQueue = []; _opProcessing = false; _opFileIdSeq = 0;
   opAllRecords = []; opFiltered = []; opFields = []; opActiveFields = [];
   opPage = 1; opTotalInFile = 0;
@@ -7882,45 +7863,23 @@ async function opCheckSavedBanner() {
   if (!saved) return;
   const meta = saved.meta || {};
   document.getElementById('opSavedTitle').textContent =
-    `Base salva: ${saved.records.length.toLocaleString('pt-BR')} registros`;
+    `Base salva: ${(meta.total||0).toLocaleString('pt-BR')} registros`;
   document.getElementById('opSavedMeta').textContent = meta.savedAt
     ? `Salva em ${meta.savedAt} — ${meta.fileNames || '—'}`
     : 'Base salva anteriormente';
   document.getElementById('opSavedBanner').style.display = 'flex';
 }
 
-/* ── Carrega a base salva do IDB para memória ── */
+/* ── Carrega metadados salvos do IDB (registros não são guardados — re-suba os arquivos para buscar) ── */
 async function opLoadSaved() {
   const saved = await _opIdbLoad();
   if (!saved) return;
-  const { records, meta } = saved;
+  const { meta } = saved;
 
-  opAllRecords  = records;
-  opFiltered    = records;
-  opPage        = 1;
-  opFields      = (() => {
-    const s = new Set();
-    records.slice(0, 300).forEach(r => Object.keys(r).forEach(k => s.add(k)));
-    return [...s];
-  })();
-  opActiveFields = [...opFields];
-  opTotalInFile  = meta.total || records.length;
-
+  // Sem busca streaming disponível (arquivo não está mais em memória)
+  // Mostra apenas info e pede para re-subir o arquivo
   document.getElementById('opSavedBanner').style.display = 'none';
-  document.getElementById('opDropzone').style.display    = 'none';
-
-  const totalLabel = `${records.length.toLocaleString('pt-BR')} registros`;
-  document.getElementById('opFileName').textContent = meta.fileNames || 'Base salva';
-  document.getElementById('opFileMeta').textContent =
-    `${totalLabel} · ${opFields.length} campos · salva em ${meta.savedAt || '—'}`;
-  document.getElementById('opFileBar').classList.add('visible');
-  document.getElementById('opSearchPanel').style.display = 'block';
-  document.getElementById('opSearchInput').value = '';
-  document.getElementById('opSearchInput').placeholder =
-    `Buscar em ${records.length.toLocaleString('pt-BR')} registros...`;
-
-  opBuildFilterChips();
-  opRender();
+  alert(`Base anterior: ${(meta.total||0).toLocaleString('pt-BR')} registros (${meta.fileNames||'—'})\n\nPara buscar, suba novamente os arquivos. A busca agora usa streaming — sem limite de memória.`);
 }
 
 /* ── Apaga a base salva do IDB ── */
@@ -7996,22 +7955,99 @@ function opSearchDebounced() {
   _opSearchTimer = setTimeout(opSearch, 220);
 }
 
+/* ── Busca em streaming: relê os arquivos em chunks, sem guardar tudo na RAM ── */
 function opSearch() {
-  const term   = (document.getElementById('opSearchInput').value || '').toLowerCase().trim();
+  const term   = (document.getElementById('opSearchInput').value || '').trim();
   const fields = opActiveFields.length ? opActiveFields : opFields;
 
+  // Cancela busca anterior
+  if (_opSearchWorker) { _opSearchWorker.terminate(); _opSearchWorker = null; }
+  const version = ++_opSearchVersion;
+
   if (!term) {
-    opFiltered = opAllRecords;
-  } else {
-    opFiltered = opAllRecords.filter(rec =>
-      fields.some(f => {
-        const v = rec[f];
-        return v !== null && v !== undefined && String(v).toLowerCase().includes(term);
-      })
-    );
+    opFiltered = [];
+    opPage = 1;
+    opRender();
+    document.getElementById('opSearchCount').innerHTML =
+      `<strong>${opTotalInFile.toLocaleString('pt-BR')}</strong> registros — digite para buscar`;
+    return;
   }
+
+  const files = _opFileQueue.filter(e => e.status === 'done').map(e => e.file);
+  if (!files.length) return;
+
+  // Mostra indicador de busca em andamento
+  document.getElementById('opSearchCount').innerHTML =
+    `<span style="color:var(--yellow)">⟳ buscando em ${opTotalInFile.toLocaleString('pt-BR')} registros...</span>`;
+
+  opFiltered = [];
   opPage = 1;
-  opRender();
+
+  // Cria worker de busca a partir do mesmo script do opWorkerScript
+  const src  = document.getElementById('opWorkerScript').textContent;
+  const blob = new Blob([src], { type: 'application/javascript' });
+  _opSearchWorker = new Worker(URL.createObjectURL(blob));
+  const sw = _opSearchWorker;
+
+  sw.onmessage = function(e) {
+    if (version !== _opSearchVersion) return; // busca cancelada
+    const msg = e.data;
+    if (msg.type === 'batch') {
+      // Filtra no main thread os matches do batch
+      const termLow = term.toLowerCase();
+      for (const rec of msg.records) {
+        if (opFiltered.length >= OP_MAX_RECORDS) break;
+        if (fields.some(f => { const v = rec[f]; return v !== null && v !== undefined && String(v).toLowerCase().includes(termLow); })) {
+          opFiltered.push(rec);
+        }
+      }
+      // Atualiza contador em tempo real
+      document.getElementById('opSearchCount').innerHTML =
+        `<span style="color:var(--yellow)">⟳ ${opFiltered.length.toLocaleString('pt-BR')} encontrados...</span>`;
+      if (opFiltered.length > 0 && opPage === 1) opRender(); // mostra resultados parciais
+    } else if (msg.type === 'done') {
+      sw.terminate();
+      if (version !== _opSearchVersion) return;
+      _opSearchWorker = null;
+      opPage = 1;
+      opRender();
+    }
+  };
+
+  sw.onerror = function(err) {
+    sw.terminate();
+    if (version !== _opSearchVersion) return;
+    _opSearchWorker = null;
+    document.getElementById('opSearchCount').innerHTML =
+      `<span style="color:var(--red)">Erro na busca: ${err.message || 'desconhecido'}</span>`;
+  };
+
+  // Alimenta todos os arquivos sequencialmente no worker de busca
+  (async () => {
+    for (const file of files) {
+      if (version !== _opSearchVersion) return;
+      sw.postMessage({ type: 'reset' });
+      const total = file.size;
+      let offset = 0;
+      while (offset < total) {
+        if (version !== _opSearchVersion) return;
+        const end    = Math.min(offset + OP_CHUNK, total);
+        const buffer = await file.slice(offset, end).arrayBuffer();
+        sw.postMessage({ type: 'chunk', buffer, fileTotal: total, offset }, [buffer]);
+        offset = end;
+        await new Promise(r => setTimeout(r, 0));
+      }
+      sw.postMessage({ type: 'finish' });
+      // Aguarda o done deste arquivo antes de passar para o próximo
+      await new Promise(res => {
+        const orig = sw.onmessage;
+        sw.onmessage = function(e) {
+          orig(e);
+          if (e.data.type === 'done') res();
+        };
+      });
+    }
+  })();
 }
 
 /* ── Renderização (só a página atual — sem innerHTML gigante) ── */
@@ -8020,11 +8056,14 @@ function opRender() {
   const pages  = Math.ceil(total / OP_PER_PAGE) || 1;
   const start  = (opPage - 1) * OP_PER_PAGE;
   const slice  = opFiltered.slice(start, start + OP_PER_PAGE);
-  const term   = (document.getElementById('opSearchInput').value || '').toLowerCase().trim();
+  const term   = (document.getElementById('opSearchInput').value || '').trim();
 
-  document.getElementById('opSearchCount').innerHTML = term
-    ? `<strong>${total.toLocaleString('pt-BR')}</strong> de ${opAllRecords.length.toLocaleString('pt-BR')} registros`
-    : `<strong>${total.toLocaleString('pt-BR')}</strong> registros`;
+  // Não sobrescreve contador se busca em streaming está em andamento
+  if (!_opSearchWorker) {
+    document.getElementById('opSearchCount').innerHTML = term
+      ? `<strong>${total.toLocaleString('pt-BR')}</strong> encontrados em ${opTotalInFile.toLocaleString('pt-BR')} registros`
+      : `<strong>${opTotalInFile.toLocaleString('pt-BR')}</strong> registros · digite para buscar`;
+  }
 
   const grid  = document.getElementById('opGrid');
   const empty = document.getElementById('opEmpty');
@@ -8032,7 +8071,7 @@ function opRender() {
   if (!slice.length) {
     grid.innerHTML = '';
     empty.style.display = 'block';
-    document.getElementById('opEmptyTerm').textContent = term;
+    document.getElementById('opEmptyTerm').textContent = term || '—';
     document.getElementById('opPagination').innerHTML = '';
     return;
   }
@@ -8327,7 +8366,7 @@ async function osintUserConsultar() {
      5. CSV:                   col1,col2\nval1,val2
    Roda fora da thread principal — UI nunca trava.
 ════════════════════════════════════════════════ */
-const MAX_RECORDS  = 15000000;
+const MAX_RECORDS  = 999_000_000; // sem cap no worker — limite é no main thread
 const FLUSH_BATCH  = 50000; // envia 50k registros por vez para evitar DataCloneError
 let records  = [];
 let fieldSet = new Set();
