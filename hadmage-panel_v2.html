@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hadmage — Painel de Consulta v4</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -30,21 +30,20 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { background: #0a0a0a !important; }
-  body { background: #0a0a0a !important; color: var(--text); font-family: var(--sans); min-height: 100vh; overflow-x: clip; }
-  body::after { content: '秘'; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: clamp(80px,15vw,200px); color: rgba(255,255,255,0.04); font-family: serif; pointer-events: none; z-index: 0; line-height: 1; user-select: none; font-weight: 900; transition: color 0.6s ease; }
-  body.logged-in::after { color: rgba(255,255,255,0.10); }
+  body { background: #0a0a0a !important; color: var(--text); font-family: var(--sans); min-height: 100vh; overflow-x: hidden; }
+  body::after { content: '秘'; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: clamp(120px,18vw,220px); color: rgba(255,255,255,0.06); font-family: serif; pointer-events: none; z-index: 0; line-height: 1; user-select: none; font-weight: 900; transition: color 0.6s ease; }
+  body.logged-in::after { color: rgba(255,255,255,0.22); }
   body::before { display: none; }
   .grid-bg { display: none; }
-  .container { position: relative; z-index: 1; max-width: 980px; margin: 0 auto; padding: 16px 16px 80px; }
-  header { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; margin-bottom: 24px; animation: fadeDown 0.6s ease both; position: relative; padding-top: 48px; }
-  .header-top-bar { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; min-height: 40px; }
-  .header-top-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .container { position: relative; z-index: 1; max-width: 980px; margin: 0 auto; padding: 48px 24px 80px; }
+  header { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; margin-bottom: 36px; animation: fadeDown 0.6s ease both; position: relative; padding-top: 40px; }
+  .header-top-bar { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; }
+  .header-top-right { display: flex; align-items: center; gap: 8px; }
   .logout-btn {
     display: none; align-items: center; gap: 6px;
     padding: 6px 14px; border-radius: 8px; border: 1px solid #ffcccc;
     background: #fff; color: var(--red); font-family: var(--mono); font-size: 11px;
     font-weight: 700; cursor: pointer; transition: all 0.2s; letter-spacing: 0.05em;
-    white-space: nowrap; flex-shrink: 0;
   }
   .logout-btn.visible { display: inline-flex; }
   .logout-btn:hover { background: var(--red); color: #fff; border-color: var(--red); }
@@ -60,16 +59,9 @@
   .conn-dot.disconnected { background: var(--red); box-shadow: 0 0 6px var(--red); }
   .conn-dot.connecting   { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); animation: pulse 0.8s ease-in-out infinite; }
   .conn-status { color: var(--muted); font-weight: 700; font-size: 11px; }
-  .tab-nav-wrap { position: relative; margin-bottom: 20px; animation: fadeUp 0.5s 0.05s ease both; }
-  .tab-nav-wrap::before, .tab-nav-wrap::after {
-    content: ''; position: absolute; top: 0; bottom: 0; width: 32px; z-index: 2; pointer-events: none;
-    transition: opacity 0.2s;
-  }
-  .tab-nav-wrap::before { left: 0; background: linear-gradient(to right, var(--surface) 40%, transparent); border-radius: 12px 0 0 12px; }
-  .tab-nav-wrap::after  { right: 0; background: linear-gradient(to left, var(--surface) 40%, transparent); border-radius: 0 12px 12px 0; }
-  .tab-nav { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 6px; overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scroll-behavior: smooth; }
+  .tab-nav { display: flex; gap: 4px; margin-bottom: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 6px; animation: fadeUp 0.5s 0.05s ease both; overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; }
   .tab-nav::-webkit-scrollbar { display: none; }
-  .tab-btn { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 16px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--muted); font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.22s; letter-spacing: 0.01em; white-space: nowrap; }
+  .tab-btn { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 18px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--muted); font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.22s; letter-spacing: 0.01em; white-space: nowrap; }
   .tab-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
   .tab-btn:hover { color: var(--text); background: var(--surface2); }
   .tab-btn.active { background: var(--surface2); border-color: var(--accent-dim); color: #eeeeee; box-shadow: 0 0 0 1px var(--accent-dim), 0 0 12px var(--accent-glow); }
@@ -441,7 +433,7 @@
   @media (max-width: 640px) {
     /* Layout geral */
     .container { padding: 20px 14px 56px; }
-    body::after { font-size: clamp(60px,30vw,140px); opacity: 0.5; }
+    body::after { font-size: 220px; }
 
     /* Header */
     header { gap: 8px; margin-bottom: 24px; }
@@ -451,10 +443,10 @@
     .header-text p  { font-size: 10px; }
     .header-status  { top: 0; right: 0; }
 
-    /* Tabs — scroll horizontal com texto */
-    .tab-nav { padding: 5px; gap: 3px; border-radius: 10px; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
-    .tab-btn { padding: 8px 12px; border-radius: 7px; font-size: 11px; gap: 5px; flex-shrink: 0; flex: 0 0 auto; }
-    .tab-btn span { display: inline; font-size: 11px; }
+    /* Tabs — só ícone no mobile */
+    .tab-nav { padding: 5px; gap: 3px; border-radius: 10px; overflow-x: auto; flex-wrap: nowrap; }
+    .tab-btn { padding: 9px 10px; border-radius: 7px; font-size: 12px; gap: 5px; flex-shrink: 0; }
+    .tab-btn span { display: none; }
 
     /* Input */
     .input-section { padding: 18px 16px; border-radius: 12px; }
@@ -463,7 +455,9 @@
 
     /* Botões */
     .controls { flex-direction: column; gap: 8px; }
-    .controls .btn, .cpf-card-actions .btn { width: 100%; justify-content: center; font-size: 13px; padding: 11px 16px; }
+    .btn { width: 100%; justify-content: center; font-size: 13px; padding: 11px 16px; }
+    /* Exceção: botões dentro do gmail-btn-row NÃO devem ser 100% */
+    .gmail-btn-row .btn { width: auto; }
 
     /* Stats */
     .stats-bar { flex-wrap: wrap; gap: 8px; }
@@ -1022,19 +1016,17 @@
 
   /* ══ MOBILE (max 480px) ══ */
   @media (max-width: 480px) {
-    .container { padding: 12px 10px 56px; }
-    header { padding-top: 48px; margin-bottom: 16px; }
+    .container { padding: 24px 12px 56px; }
+    header { padding-top: 44px; margin-bottom: 20px; }
     .logo span { font-size: 40px !important; }
-    .header-text h1 { font-size: 26px; }
-    .header-text p { font-size: 9px; }
-    .user-chip-name { max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .header-text h1 { font-size: 28px; }
+    .user-chip-name { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .logout-btn { padding: 5px 10px; font-size: 10px; }
     .logout-btn svg { width: 11px; height: 11px; }
-    .logout-btn span { display: none; }
     .admin-users-btn { padding: 5px 10px; font-size: 10px; }
-    /* Tabs: ícone + texto curto, scroll horizontal, SEM flex:1 */
-    .tab-btn { padding: 9px 12px; font-size: 11px; gap: 5px; }
-    .tab-btn svg { width: 15px; height: 15px; }
+    .tab-btn span { display: none; }
+    .tab-btn { padding: 10px; flex: 1; justify-content: center; }
+    .tab-btn svg { width: 18px; height: 18px; }
     .stats-bar { flex-direction: column; gap: 8px; }
     .stat-pill { width: 100%; }
     .results-col-header, .result-item { grid-template-columns: 18px 1fr 80px; gap: 6px; padding: 10px 14px; }
@@ -1044,11 +1036,10 @@
     .carrier-chip { display: none; }
     .datora-col-header, .datora-row { grid-template-columns: 18px 1fr 80px; gap: 6px; padding: 10px 14px; }
     .gmail-col-header, .gmail-row { grid-template-columns: 18px 1fr 64px; gap: 5px; padding: 9px 12px; }
-    .input-section { padding: 14px 12px; border-radius: 12px; }
-    textarea { font-size: 12px; min-height: 100px; padding: 12px; }
+    .input-section { padding: 16px 14px; border-radius: 12px; }
+    textarea { font-size: 12px; min-height: 110px; padding: 12px; }
     .controls { flex-direction: column; }
-    .controls .btn { width: 100%; justify-content: center; }
-    .cpf-card-actions .btn { width: 100%; justify-content: center; }
+    .btn { width: 100%; justify-content: center; }
     .users-box { max-width: 100%; border-radius: 20px 20px 0 0; max-height: 92vh; align-self: flex-end; }
     #usersOverlay { padding: 0; align-items: flex-end; }
     .users-body { padding: 18px 16px; }
@@ -1065,13 +1056,12 @@
 
   /* ══ MOBILE PEQUENO (max 360px) ══ */
   @media (max-width: 360px) {
-    .container { padding: 10px 8px 48px; }
-    .tab-btn { padding: 8px 10px; font-size: 10px; }
-    .tab-btn svg { width: 14px; height: 14px; }
+    .container { padding: 20px 10px 48px; }
+    .tab-btn { padding: 8px 6px; }
+    .tab-btn svg { width: 16px; height: 16px; }
     .stat-value { font-size: 18px; }
     .results-col-header, .result-item { grid-template-columns: 14px 1fr 70px; gap: 4px; padding: 8px 10px; }
     .result-number { font-size: 11px; }
-    .header-text h1 { font-size: 22px; }
   }
   /* ══════════════════════════════════════════════
      CONSULTA CPF — estilos
@@ -1219,19 +1209,18 @@
   @media (min-width: 641px) and (max-width: 980px) {
     .tab-btn { padding: 10px 12px; font-size: 12px; gap: 6px; }
     .tab-btn span { font-size: 11px; }
-    .container { padding: 24px 16px 72px; }
-  }
-  @media (min-width: 981px) {
-    .container { padding: 40px 24px 80px; }
+    .container { padding: 36px 20px 72px; }
   }
 
   /* ── Header: evita sobreposição do top-bar com o logo em telas médias ── */
   @media (max-width: 780px) {
     header { padding-top: 52px; }
     .header-top-bar { flex-wrap: nowrap; gap: 6px; }
-    .header-top-right { gap: 5px; flex-wrap: nowrap; max-width: 60%; }
-    .admin-users-btn span { display: none; }
-    .admin-users-btn { padding: 6px 10px; gap: 0; }
+    .header-top-right { gap: 5px; flex-wrap: nowrap; }
+    .admin-users-btn span,
+    .logout-btn span { display: none; }
+    .admin-users-btn,
+    .logout-btn { padding: 6px 10px; gap: 0; }
   }
 
   /* ── Profile Dock: evita saída da tela em mobile ── */
@@ -1324,6 +1313,491 @@
   * { -webkit-tap-highlight-color: transparent; }
 
   /* ══════════════════════════════════════════════
+     CEP TAB — estilos
+  ══════════════════════════════════════════════ */
+  .cep-input-row {
+    display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap;
+  }
+  .cep-input {
+    flex: 1; min-width: 160px; max-width: 240px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text); font-family: var(--mono);
+    font-size: 15px; padding: 12px 16px; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    letter-spacing: 0.08em;
+  }
+  .cep-input:focus { border-color: var(--green-dim); box-shadow: 0 0 0 3px var(--green-glow); }
+  .cep-input::placeholder { color: var(--muted); letter-spacing: 0.04em; }
+  .cep-valid-badge {
+    display: none; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 10px; font-weight: 700;
+    padding: 4px 10px; border-radius: 20px; white-space: nowrap;
+  }
+  .cep-valid-badge.ok  { display: inline-flex; background: rgba(0,229,160,0.10); color: var(--green); border: 1px solid rgba(0,229,160,0.28); }
+  .cep-valid-badge.err { display: inline-flex; background: rgba(255,77,77,0.10);  color: var(--red);   border: 1px solid rgba(255,77,77,0.3); }
+
+  /* Card de resultado */
+  .cep-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; overflow: hidden;
+    animation: fadeUp 0.35s ease both;
+    margin-top: 0;
+  }
+  .cep-card-head {
+    display: flex; align-items: center; gap: 14px;
+    padding: 20px 24px; border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .cep-card-icon {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+    background: rgba(0,229,160,0.10); border: 1px solid rgba(0,229,160,0.22);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--green);
+  }
+  .cep-card-icon svg { width: 22px; height: 22px; }
+  .cep-card-cep {
+    font-family: var(--mono); font-size: 22px; font-weight: 700;
+    color: var(--green); letter-spacing: 0.08em; line-height: 1;
+  }
+  .cep-card-loc {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    margin-top: 4px; letter-spacing: 0.03em;
+  }
+  .cep-card-actions {
+    display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap;
+    align-items: center;
+  }
+  .cep-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+  }
+  .cep-field {
+    padding: 14px 24px; border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    transition: background 0.15s; min-width: 0;
+  }
+  .cep-field:hover { background: rgba(255,255,255,0.02); }
+  .cep-field:nth-child(2n) { border-right: none; }
+  .cep-field:nth-last-child(-n+2):not(.cep-full) { border-bottom: none; }
+  .cep-field.cep-full { grid-column: 1 / -1; border-right: none; }
+  .cep-field.cep-full:last-child { border-bottom: none; }
+  .cep-field-label {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 4px;
+  }
+  .cep-field-value {
+    font-family: var(--mono); font-size: 13px; color: var(--text);
+    word-break: break-word; line-height: 1.4;
+  }
+  .cep-field-value.green  { color: var(--green); font-weight: 700; }
+  .cep-field-value.cyan   { color: var(--cyan);  font-weight: 700; }
+  .cep-field-value.muted  { color: var(--muted); }
+
+  /* Histórico */
+  .cep-history-wrap {
+    margin-top: 20px;
+  }
+  .cep-history-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .cep-history-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .cep-history-list {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .cep-history-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface);
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    cursor: pointer; transition: all 0.2s; letter-spacing: 0.05em;
+  }
+  .cep-history-chip:hover { border-color: var(--green-dim); color: var(--green); background: rgba(0,229,160,0.05); }
+  .cep-history-chip .cep-h-cep { color: var(--text); font-weight: 700; }
+  .cep-history-chip .cep-h-loc { color: var(--muted); font-size: 10px; }
+
+  /* Banner de erro */
+  .cep-error-banner {
+    display: none; background: rgba(255,77,77,0.08); border: 1px solid rgba(255,77,77,0.25);
+    border-radius: 8px; padding: 10px 14px; font-family: var(--mono);
+    font-size: 11px; color: var(--red); margin-top: 12px; line-height: 1.5;
+  }
+  .cep-error-banner.visible { display: block; }
+
+  /* Botão copiar com feedback */
+  .cep-copy-btn.copied { background: rgba(0,229,160,0.12) !important; color: var(--green) !important; border-color: var(--green-dim) !important; }
+
+  @media (max-width: 640px) {
+    .cep-grid { grid-template-columns: 1fr; }
+    .cep-field { border-right: none; border-bottom: 1px solid var(--border); }
+    .cep-field:last-child { border-bottom: none; }
+    .cep-field.cep-full { grid-column: 1; }
+    .cep-card-head { flex-wrap: wrap; gap: 10px; }
+    .cep-card-actions { margin-left: 0; width: 100%; }
+    .cep-card-actions .btn { flex: 1; justify-content: center; }
+    .cep-input { max-width: 100%; }
+    .cep-field { padding: 12px 16px; }
+    .cep-card-head { padding: 16px; }
+  }
+
+  /* ══════════════════════════════════════════════
+     CNPJ TAB — estilos
+  ══════════════════════════════════════════════ */
+  .cnpj-input-row {
+    display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap;
+  }
+  .cnpj-input {
+    flex: 1; min-width: 200px; max-width: 280px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text); font-family: var(--mono);
+    font-size: 15px; padding: 12px 16px; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    letter-spacing: 0.06em;
+  }
+  .cnpj-input:focus { border-color: var(--accent-dim); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .cnpj-input::placeholder { color: var(--muted); letter-spacing: 0.04em; }
+  .cnpj-valid-badge {
+    display: none; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 10px; font-weight: 700;
+    padding: 4px 10px; border-radius: 20px; white-space: nowrap;
+  }
+  .cnpj-valid-badge.ok  { display: inline-flex; background: rgba(124,111,255,0.10); color: var(--accent); border: 1px solid rgba(124,111,255,0.3); }
+  .cnpj-valid-badge.err { display: inline-flex; background: rgba(255,77,77,0.10);   color: var(--red);    border: 1px solid rgba(255,77,77,0.3); }
+
+  /* Situação badge */
+  .cnpj-situacao-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 14px; border-radius: 20px; font-family: var(--mono);
+    font-size: 12px; font-weight: 700; letter-spacing: 0.05em; white-space: nowrap;
+  }
+  .cnpj-situacao-badge.ativa   { background: rgba(0,229,160,0.10); color: var(--green); border: 1px solid rgba(0,229,160,0.28); }
+  .cnpj-situacao-badge.baixada { background: rgba(255,77,77,0.10);  color: var(--red);   border: 1px solid rgba(255,77,77,0.3); }
+  .cnpj-situacao-badge.inapta  { background: rgba(245,158,11,0.12); color: var(--yellow);border: 1px solid rgba(245,158,11,0.3); }
+  .cnpj-situacao-badge.outro   { background: rgba(148,163,184,0.10);color: var(--muted); border: 1px solid var(--border); }
+  .cnpj-sit-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+  /* Card principal */
+  .cnpj-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; overflow: hidden; animation: fadeUp 0.35s ease both;
+  }
+  .cnpj-card-head {
+    display: flex; align-items: flex-start; gap: 16px;
+    padding: 22px 26px; border-bottom: 1px solid var(--border);
+    background: var(--surface2); flex-wrap: wrap;
+  }
+  .cnpj-card-icon {
+    width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0;
+    background: rgba(124,111,255,0.10); border: 1px solid rgba(124,111,255,0.22);
+    display: flex; align-items: center; justify-content: center; color: var(--accent);
+  }
+  .cnpj-card-icon svg { width: 24px; height: 24px; }
+  .cnpj-card-title {
+    font-family: var(--sans); font-size: 18px; font-weight: 800;
+    color: var(--text); line-height: 1.2; word-break: break-word;
+  }
+  .cnpj-card-sub {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    margin-top: 5px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .cnpj-card-actions {
+    display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; align-items: center;
+  }
+
+  /* Grid de campos — 3 colunas em desktop */
+  .cnpj-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0;
+  }
+  .cnpj-field {
+    padding: 14px 22px; border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border); transition: background 0.15s; min-width: 0;
+  }
+  .cnpj-field:hover { background: rgba(255,255,255,0.02); }
+  .cnpj-field:nth-child(3n) { border-right: none; }
+  .cnpj-field.cnpj-full { grid-column: 1 / -1; border-right: none; }
+  .cnpj-field.cnpj-half { grid-column: span 2; }
+  .cnpj-field:last-child,
+  .cnpj-grid > .cnpj-field:nth-last-child(-n+3):not(.cnpj-full) { border-bottom: none; }
+  .cnpj-field-label {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 4px;
+  }
+  .cnpj-field-value {
+    font-family: var(--mono); font-size: 12px; color: var(--text);
+    word-break: break-word; line-height: 1.5;
+  }
+  .cnpj-field-value.accent { color: var(--accent); font-weight: 700; }
+  .cnpj-field-value.green  { color: var(--green);  font-weight: 700; }
+  .cnpj-field-value.red    { color: var(--red);    font-weight: 700; }
+  .cnpj-field-value.yellow { color: var(--yellow); font-weight: 700; }
+  .cnpj-field-value.muted  { color: var(--muted); }
+
+  /* Seção de atividades */
+  .cnpj-section-title {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--muted); padding: 14px 22px 10px;
+    border-bottom: 1px solid var(--border); background: rgba(20,20,20,0.6);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .cnpj-section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .cnpj-atividade-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 11px 22px; border-bottom: 1px solid var(--border); transition: background 0.15s;
+  }
+  .cnpj-atividade-item:last-child { border-bottom: none; }
+  .cnpj-atividade-item:hover { background: rgba(255,255,255,0.02); }
+  .cnpj-ativ-code {
+    font-family: var(--mono); font-size: 11px; color: var(--accent);
+    font-weight: 700; white-space: nowrap; flex-shrink: 0; padding-top: 1px;
+    min-width: 60px;
+  }
+  .cnpj-ativ-desc { font-family: var(--mono); font-size: 11px; color: var(--text); line-height: 1.5; }
+  .cnpj-ativ-principal {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--green); background: rgba(0,229,160,0.08);
+    border: 1px solid rgba(0,229,160,0.2); border-radius: 4px; padding: 2px 7px;
+    white-space: nowrap; flex-shrink: 0;
+  }
+
+  /* Sócios */
+  .cnpj-socio-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 22px; border-bottom: 1px solid var(--border); transition: background 0.15s;
+  }
+  .cnpj-socio-item:last-child { border-bottom: none; }
+  .cnpj-socio-item:hover { background: rgba(255,255,255,0.02); }
+  .cnpj-socio-avatar {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(124,111,255,0.12); border: 1px solid rgba(124,111,255,0.22);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--sans); font-size: 13px; font-weight: 800; color: var(--accent);
+    text-transform: uppercase;
+  }
+  .cnpj-socio-nome { font-family: var(--mono); font-size: 12px; color: var(--text); font-weight: 700; }
+  .cnpj-socio-qual { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .cnpj-socio-since { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+
+  /* Erro banner */
+  .cnpj-error-banner {
+    display: none; background: rgba(255,77,77,0.08); border: 1px solid rgba(255,77,77,0.25);
+    border-radius: 8px; padding: 10px 14px; font-family: var(--mono);
+    font-size: 11px; color: var(--red); margin-top: 12px; line-height: 1.5;
+  }
+  .cnpj-error-banner.visible { display: block; }
+
+  /* Histórico */
+  .cnpj-history-wrap { margin-top: 20px; }
+  .cnpj-history-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .cnpj-history-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .cnpj-history-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cnpj-history-chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface);
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    cursor: pointer; transition: all 0.2s;
+  }
+  .cnpj-history-chip:hover { border-color: var(--accent-dim); color: var(--accent); background: rgba(124,111,255,0.05); }
+  .cnpj-history-chip .cnpj-h-num { color: var(--text); font-weight: 700; letter-spacing: 0.05em; }
+  .cnpj-history-chip .cnpj-h-nome { color: var(--muted); font-size: 10px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Copy feedback */
+  .cnpj-copy-btn.copied { background: rgba(0,229,160,0.10) !important; color: var(--green) !important; border-color: var(--green-dim) !important; }
+
+  @media (max-width: 900px) {
+    .cnpj-grid { grid-template-columns: 1fr 1fr; }
+    .cnpj-field:nth-child(3n) { border-right: 1px solid var(--border); }
+    .cnpj-field:nth-child(2n) { border-right: none; }
+    .cnpj-field.cnpj-half { grid-column: span 1; }
+    .cnpj-field:nth-last-child(-n+2):not(.cnpj-full) { border-bottom: none; }
+    .cnpj-field:nth-last-child(1):not(.cnpj-full) { border-bottom: none; }
+  }
+  @media (max-width: 640px) {
+    .cnpj-grid { grid-template-columns: 1fr; }
+    .cnpj-field { border-right: none !important; border-bottom: 1px solid var(--border); }
+    .cnpj-field:last-child { border-bottom: none; }
+    .cnpj-field.cnpj-full,
+    .cnpj-field.cnpj-half { grid-column: 1; }
+    .cnpj-field { padding: 11px 16px; }
+    .cnpj-card-head { padding: 16px; gap: 12px; }
+    .cnpj-card-actions { margin-left: 0; width: 100%; }
+    .cnpj-card-actions .btn { flex: 1; justify-content: center; }
+    .cnpj-input { max-width: 100%; }
+    .cnpj-atividade-item,
+    .cnpj-socio-item { padding: 10px 16px; }
+    .cnpj-section-title { padding: 12px 16px 8px; }
+  }
+
+  /* ══════════════════════════════════════════════
+     IP TAB — estilos
+  ══════════════════════════════════════════════ */
+  .ip-input-row {
+    display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap;
+  }
+  .ip-input {
+    flex: 1; min-width: 200px; max-width: 300px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text); font-family: var(--mono);
+    font-size: 15px; padding: 12px 16px; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s; letter-spacing: 0.04em;
+  }
+  .ip-input:focus { border-color: var(--cyan-dim); box-shadow: 0 0 0 3px var(--cyan-glow); }
+  .ip-input::placeholder { color: var(--muted); }
+
+  /* Card principal */
+  .ip-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; overflow: hidden; animation: fadeUp 0.35s ease both;
+  }
+  .ip-card-head {
+    display: flex; align-items: flex-start; gap: 16px;
+    padding: 22px 26px; border-bottom: 1px solid var(--border);
+    background: var(--surface2); flex-wrap: wrap;
+  }
+  .ip-card-icon {
+    width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0;
+    background: rgba(34,211,238,0.10); border: 1px solid rgba(34,211,238,0.22);
+    display: flex; align-items: center; justify-content: center; color: var(--cyan);
+  }
+  .ip-card-icon svg { width: 24px; height: 24px; }
+  .ip-card-address {
+    font-family: var(--mono); font-size: 24px; font-weight: 700;
+    color: var(--cyan); letter-spacing: 0.06em; line-height: 1;
+  }
+  .ip-card-sub {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .ip-card-flag { font-size: 22px; line-height: 1; }
+  .ip-card-actions {
+    display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; align-items: center;
+  }
+
+  /* Status de proxy/VPN/Tor */
+  .ip-threat-row {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    padding: 14px 26px; border-bottom: 1px solid var(--border);
+    background: rgba(10,10,10,0.4);
+  }
+  .ip-threat-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 12px; border-radius: 20px; font-family: var(--mono);
+    font-size: 10px; font-weight: 700; letter-spacing: 0.05em; white-space: nowrap;
+    border: 1px solid;
+  }
+  .ip-threat-chip.safe    { color: var(--green);  border-color: rgba(0,229,160,0.3);  background: rgba(0,229,160,0.08); }
+  .ip-threat-chip.danger  { color: var(--red);    border-color: rgba(255,77,77,0.3);  background: rgba(255,77,77,0.08); }
+  .ip-threat-chip.neutral { color: var(--muted);  border-color: var(--border);        background: transparent; }
+
+  /* Grid de campos — 3 colunas */
+  .ip-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0;
+  }
+  .ip-field {
+    padding: 14px 22px; border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border); transition: background 0.15s; min-width: 0;
+  }
+  .ip-field:hover { background: rgba(255,255,255,0.02); }
+  .ip-field:nth-child(3n) { border-right: none; }
+  .ip-field.ip-full { grid-column: 1 / -1; border-right: none; }
+  .ip-field:last-child,
+  .ip-grid > .ip-field:nth-last-child(-n+3):not(.ip-full) { border-bottom: none; }
+  .ip-field-label {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 4px;
+  }
+  .ip-field-value {
+    font-family: var(--mono); font-size: 12px; color: var(--text);
+    word-break: break-word; line-height: 1.5;
+  }
+  .ip-field-value.cyan   { color: var(--cyan);   font-weight: 700; }
+  .ip-field-value.green  { color: var(--green);  font-weight: 700; }
+  .ip-field-value.accent { color: var(--accent); font-weight: 700; }
+  .ip-field-value.yellow { color: var(--yellow); font-weight: 700; }
+  .ip-field-value.muted  { color: var(--muted); }
+
+  /* Mapa embed */
+  .ip-map-wrap {
+    border-top: 1px solid var(--border); height: 280px; overflow: hidden;
+  }
+  .ip-map-wrap iframe { width: 100%; height: 100%; display: block; border: none; }
+
+  /* Mini coord pill */
+  .ip-coord-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 3px 10px; white-space: nowrap;
+  }
+
+  /* Erro banner */
+  .ip-error-banner {
+    display: none; background: rgba(255,77,77,0.08); border: 1px solid rgba(255,77,77,0.25);
+    border-radius: 8px; padding: 10px 14px; font-family: var(--mono);
+    font-size: 11px; color: var(--red); margin-top: 12px; line-height: 1.5;
+  }
+  .ip-error-banner.visible { display: block; }
+
+  /* Histórico */
+  .ip-history-wrap { margin-top: 20px; }
+  .ip-history-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .ip-history-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .ip-history-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ip-history-chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface);
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    cursor: pointer; transition: all 0.2s;
+  }
+  .ip-history-chip:hover { border-color: var(--cyan-dim); color: var(--cyan); background: rgba(34,211,238,0.05); }
+  .ip-history-chip .ip-h-addr { color: var(--text); font-weight: 700; letter-spacing: 0.05em; }
+  .ip-history-chip .ip-h-loc  { color: var(--muted); font-size: 10px; }
+
+  /* Copy feedback */
+  .ip-copy-btn.copied { background: rgba(0,229,160,0.10) !important; color: var(--green) !important; border-color: var(--green-dim) !important; }
+
+  /* Botão "Meu IP" */
+  .ip-myip-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 12px 18px; border-radius: 8px; border: 1px solid var(--border);
+    background: transparent; color: var(--muted); font-family: var(--mono);
+    font-size: 12px; cursor: pointer; transition: all 0.2s; letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .ip-myip-btn:hover { border-color: var(--cyan-dim); color: var(--cyan); background: rgba(34,211,238,0.05); }
+  .ip-myip-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  @media (max-width: 900px) {
+    .ip-grid { grid-template-columns: 1fr 1fr; }
+    .ip-field:nth-child(3n)   { border-right: 1px solid var(--border); }
+    .ip-field:nth-child(2n)   { border-right: none; }
+    .ip-field:nth-last-child(-n+2):not(.ip-full) { border-bottom: none; }
+  }
+  @media (max-width: 640px) {
+    .ip-grid { grid-template-columns: 1fr; }
+    .ip-field { border-right: none !important; border-bottom: 1px solid var(--border); }
+    .ip-field:last-child { border-bottom: none; }
+    .ip-field.ip-full { grid-column: 1; }
+    .ip-field { padding: 11px 16px; }
+    .ip-card-head { padding: 16px; gap: 12px; }
+    .ip-card-actions { margin-left: 0; width: 100%; }
+    .ip-card-actions .btn { flex: 1; justify-content: center; }
+    .ip-card-address { font-size: 18px; }
+    .ip-threat-row { padding: 12px 16px; }
+    .ip-input { max-width: 100%; }
+    .ip-map-wrap { height: 220px; }
+  }
+
+  /* ══════════════════════════════════════════════
      MOBILE CPF + FOOTER FIXES
   ══════════════════════════════════════════════ */
 
@@ -1386,12 +1860,11 @@
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 12px; padding: 5px; overflow-x: auto;
     scrollbar-width: none; flex-wrap: nowrap;
-    -webkit-overflow-scrolling: touch;
   }
   .osint-subnav::-webkit-scrollbar { display: none; }
   .osint-sub-btn {
     flex: 0 0 auto; display: flex; align-items: center; gap: 7px;
-    padding: 8px 14px; border-radius: 8px; border: 1px solid transparent;
+    padding: 8px 16px; border-radius: 8px; border: 1px solid transparent;
     background: transparent; color: var(--muted); font-family: var(--sans);
     font-size: 12px; font-weight: 600; cursor: pointer;
     transition: all 0.2s; white-space: nowrap; letter-spacing: 0.01em;
@@ -1404,17 +1877,6 @@
   }
   .osint-pane { display: none; }
   .osint-pane.active { display: block; }
-  /* Input row — row no desktop, coluna no mobile */
-  .osint-input-row {
-    display: flex; gap: 8px; align-items: stretch; flex-direction: row;
-  }
-  .osint-input-row .osint-input { flex: 1; min-width: 0; }
-  .osint-input-row .btn { flex-shrink: 0; white-space: nowrap; }
-  @media (max-width: 540px) {
-    .osint-input-row { flex-direction: column; }
-    .osint-input-row .btn { width: 100%; justify-content: center; }
-    .osint-sub-btn { padding: 7px 10px; font-size: 11px; }
-  }
   .osint-input {
     width: 100%; background: var(--bg); border: 1px solid var(--border);
     border-radius: 10px; color: var(--text); font-family: var(--mono);
@@ -1422,7 +1884,7 @@
     transition: border-color 0.2s, box-shadow 0.2s;
   }
   .osint-input:focus { border-color: var(--cyan-dim); box-shadow: 0 0 0 3px var(--cyan-glow); }
-  .osint-input::placeholder { color: var(--muted); font-size: 12px; }
+  .osint-input::placeholder { color: var(--muted); }
   .osint-card {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 16px; overflow: hidden; margin-top: 16px;
@@ -1594,15 +2056,14 @@
     </div>
   </header>
 
-  <div class="tab-nav-wrap">
-  <nav class="tab-nav" id="tabNav">
+  <nav class="tab-nav">
     <button class="tab-btn active" onclick="switchTab('checker', this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
       <span>Verificar Números</span>
     </button>
     <button class="tab-btn" onclick="switchTab('datora', this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-      <span>Datora</span>
+      <span>Consulta Números Datora</span>
     </button>
     <button class="tab-btn" onclick="switchTab('gmail', this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
@@ -1614,7 +2075,7 @@
     </button>
     <button class="tab-btn" onclick="switchTab('base', this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-      <span>Base</span>
+      <span>Consultar Base</span>
     </button>
     <button class="tab-btn" onclick="switchTab('cpf', this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0M9 12h.01M15 12h.01M12 12h.01"/></svg>
@@ -1624,8 +2085,19 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
       <span>OSINT</span>
     </button>
+    <button class="tab-btn" onclick="switchTab('cep', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      <span>Consultar CEP</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('cnpj', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+      <span>Consultar CNPJ</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('ip', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+      <span>Consultar IP</span>
+    </button>
   </nav>
-  </div>
 
   <!-- TAB 1 — Verificar Números -->
   <div class="tab-panel active" id="panel-checker">
@@ -2246,6 +2718,14 @@
     </div>
   </div><!-- /panel-cpf -->
 
+  <div class="dev-footer">
+    <span>Desenvolvido por</span>
+    <span class="dev-name">s/6</span>
+    <span class="dev-sep">·</span>
+    <a class="dev-contact" href="https://wa.me/5521966663666" target="_blank">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.126.556 4.122 1.527 5.854L0 24l6.351-1.504A11.943 11.943 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.884 0-3.651-.494-5.188-1.357l-.361-.214-3.769.892.942-3.671-.235-.376A9.962 9.962 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+      +55 (21) 96666-3666
+    </a>
   <!-- TAB OSINT -->
   <div class="tab-panel" id="panel-osint">
 
@@ -2276,8 +2756,8 @@
     <div class="osint-pane active" id="osint-pane-ip">
       <div class="input-section">
         <div class="section-label">IP / Geolocalização</div>
-        <div class="osint-input-row">
-          <input class="osint-input" id="osintIpInput" type="text" placeholder="Ex: 8.8.8.8 — deixe vazio para consultar seu próprio IP" />
+        <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
+          <input class="osint-input" id="osintIpInput" type="text" placeholder="Ex: 8.8.8.8 — deixe vazio para consultar seu próprio IP" style="flex:1;min-width:200px" />
           <button class="btn btn-primary" onclick="osintIpConsultar()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             Consultar
@@ -2293,8 +2773,8 @@
     <div class="osint-pane" id="osint-pane-whois">
       <div class="input-section">
         <div class="section-label">Whois de Domínio</div>
-        <div class="osint-input-row">
-          <input class="osint-input" id="osintWhoisInput" type="text" placeholder="Ex: google.com" />
+        <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
+          <input class="osint-input" id="osintWhoisInput" type="text" placeholder="Ex: google.com" style="flex:1;min-width:200px" />
           <button class="btn btn-primary" onclick="osintWhoisConsultar()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
             Consultar
@@ -2310,8 +2790,8 @@
     <div class="osint-pane" id="osint-pane-email">
       <div class="input-section">
         <div class="section-label">Verificar Vazamento de Email</div>
-        <div class="osint-input-row">
-          <input class="osint-input" id="osintEmailInput" type="email" placeholder="exemplo@email.com" />
+        <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
+          <input class="osint-input" id="osintEmailInput" type="email" placeholder="exemplo@email.com" style="flex:1;min-width:200px" />
           <button class="btn btn-primary" onclick="osintEmailConsultar()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
             Verificar
@@ -2360,8 +2840,8 @@
     <div class="osint-pane" id="osint-pane-username">
       <div class="input-section">
         <div class="section-label">Lookup de Username</div>
-        <div class="osint-input-row">
-          <input class="osint-input" id="osintUserInput" type="text" placeholder="Ex: johndoe" oninput="osintUserValidate()" />
+        <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
+          <input class="osint-input" id="osintUserInput" type="text" placeholder="Ex: johndoe" oninput="osintUserValidate()" style="flex:1;min-width:200px" />
           <button class="btn btn-primary" id="osintUserBtn" onclick="osintUserConsultar()" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             Verificar
@@ -2388,15 +2868,473 @@
   </div>
   <!-- FIM TAB OSINT -->
 
-  <div class="dev-footer">
-    <span>Desenvolvido por</span>
-    <span class="dev-name">s/6</span>
-    <span class="dev-sep">·</span>
-    <a class="dev-contact" href="https://wa.me/5521966663666" target="_blank">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.126.556 4.122 1.527 5.854L0 24l6.351-1.504A11.943 11.943 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.884 0-3.651-.494-5.188-1.357l-.361-.214-3.769.892.942-3.671-.235-.376A9.962 9.962 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
-      +55 (21) 96666-3666
-    </a>
-  </div><!-- /dev-footer -->
+  <!-- TAB CEP — Consultar CEP (ViaCEP) -->
+  <div class="tab-panel" id="panel-cep">
+
+    <div class="input-section">
+      <div class="section-label">Consultar CEP</div>
+      <div class="cep-input-row">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <input
+            class="cep-input"
+            id="cepInput"
+            type="text"
+            maxlength="9"
+            placeholder="00000-000"
+            oninput="cepOnInput(this)"
+            onkeydown="if(event.key==='Enter')cepConsultar()"
+          />
+          <div class="cep-valid-badge" id="cepValidBadge"></div>
+        </div>
+        <button class="btn btn-primary" id="cepBtn" onclick="cepConsultar()" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          Consultar
+        </button>
+        <button class="btn btn-secondary" onclick="cepLimpar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          Limpar
+        </button>
+      </div>
+      <div style="margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.6">
+        Powered by <strong style="color:#ccc">ViaCEP</strong> — consulta gratuita e sem autenticação. Cobre todos os CEPs dos Correios.
+      </div>
+      <div class="cep-error-banner" id="cepError"></div>
+    </div>
+
+    <!-- Loader -->
+    <div id="cepLoader" style="display:none;padding:28px 0;text-align:center">
+      <div style="display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;color:var(--muted)">
+        <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        Consultando ViaCEP…
+      </div>
+    </div>
+
+    <!-- Resultado -->
+    <div id="cepResult" style="display:none">
+      <div class="cep-card">
+        <div class="cep-card-head">
+          <div class="cep-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
+          <div>
+            <div class="cep-card-cep" id="cepResNum">—</div>
+            <div class="cep-card-loc" id="cepResLoc">—</div>
+          </div>
+          <div class="cep-card-actions">
+            <button class="btn btn-secondary cep-copy-btn" id="cepCopyBtn" onclick="cepCopiar()" style="font-size:12px;padding:8px 14px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              Copiar
+            </button>
+            <a class="btn btn-secondary" id="cepMapsBtn" href="#" target="_blank" rel="noopener" style="font-size:12px;padding:8px 14px;text-decoration:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+              Ver no Mapa
+            </a>
+            <button class="btn btn-secondary" onclick="cepNova()" style="font-size:12px;padding:8px 14px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15"/></svg>
+              Nova Consulta
+            </button>
+          </div>
+        </div>
+        <div class="cep-grid">
+          <div class="cep-field">
+            <div class="cep-field-label">Logradouro</div>
+            <div class="cep-field-value" id="cepFLogradouro">—</div>
+          </div>
+          <div class="cep-field">
+            <div class="cep-field-label">Complemento</div>
+            <div class="cep-field-value muted" id="cepFComplemento">—</div>
+          </div>
+          <div class="cep-field">
+            <div class="cep-field-label">Bairro</div>
+            <div class="cep-field-value" id="cepFBairro">—</div>
+          </div>
+          <div class="cep-field">
+            <div class="cep-field-label">Localidade</div>
+            <div class="cep-field-value green" id="cepFLocalidade">—</div>
+          </div>
+          <div class="cep-field">
+            <div class="cep-field-label">UF</div>
+            <div class="cep-field-value cyan" id="cepFUf">—</div>
+          </div>
+          <div class="cep-field">
+            <div class="cep-field-label">IBGE</div>
+            <div class="cep-field-value" id="cepFIbge">—</div>
+          </div>
+          <div class="cep-field">
+            <div class="cep-field-label">DDD</div>
+            <div class="cep-field-value" id="cepFDdd">—</div>
+          </div>
+          <div class="cep-field">
+            <div class="cep-field-label">GIA</div>
+            <div class="cep-field-value muted" id="cepFGia">—</div>
+          </div>
+          <div class="cep-field">
+            <div class="cep-field-label">SIAFI</div>
+            <div class="cep-field-value muted" id="cepFSiafi">—</div>
+          </div>
+          <div class="cep-field">
+            <div class="cep-field-label">Fonte</div>
+            <div class="cep-field-value muted">viacep.com.br</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mapa embed -->
+      <div id="cepMapWrap" style="display:none;margin-top:16px;border-radius:14px;overflow:hidden;border:1px solid var(--border);height:260px">
+        <iframe id="cepMapIframe" width="100%" height="260" frameborder="0" style="border:0;display:block" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+      </div>
+    </div>
+
+    <!-- Histórico de consultas -->
+    <div class="cep-history-wrap" id="cepHistoryWrap" style="display:none">
+      <div class="cep-history-label">Histórico desta sessão</div>
+      <div class="cep-history-list" id="cepHistoryList"></div>
+    </div>
+
+  </div>
+  <!-- FIM TAB CEP -->
+
+  <!-- TAB CNPJ — Consultar CNPJ (ReceitaWS) -->
+  <div class="tab-panel" id="panel-cnpj">
+
+    <div class="input-section">
+      <div class="section-label">Consultar CNPJ</div>
+      <div class="cnpj-input-row">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <input
+            class="cnpj-input"
+            id="cnpjInput"
+            type="text"
+            maxlength="18"
+            placeholder="00.000.000/0000-00"
+            oninput="cnpjOnInput(this)"
+            onkeydown="if(event.key==='Enter')cnpjConsultar()"
+          />
+          <div class="cnpj-valid-badge" id="cnpjValidBadge"></div>
+        </div>
+        <button class="btn btn-primary" id="cnpjBtn" onclick="cnpjConsultar()" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+          Consultar
+        </button>
+        <button class="btn btn-secondary" onclick="cnpjLimpar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          Limpar
+        </button>
+      </div>
+      <div style="margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.6">
+        Powered by <strong style="color:#ccc">ReceitaWS</strong> — dados públicos da Receita Federal. Limite: 3 consultas/min no plano gratuito.
+      </div>
+      <div class="cnpj-error-banner" id="cnpjError"></div>
+    </div>
+
+    <!-- Loader -->
+    <div id="cnpjLoader" style="display:none;padding:32px 0;text-align:center">
+      <div style="display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;color:var(--muted)">
+        <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        Consultando ReceitaWS…
+      </div>
+    </div>
+
+    <!-- Resultado -->
+    <div id="cnpjResult" style="display:none">
+      <div class="cnpj-card">
+
+        <!-- Cabeçalho -->
+        <div class="cnpj-card-head">
+          <div class="cnpj-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div class="cnpj-card-title" id="cnpjResNome">—</div>
+            <div class="cnpj-card-sub">
+              <span id="cnpjResNumero" style="letter-spacing:0.06em">—</span>
+              <span style="color:var(--border)">·</span>
+              <div class="cnpj-situacao-badge outro" id="cnpjResSituacao">—</div>
+            </div>
+          </div>
+          <div class="cnpj-card-actions">
+            <button class="btn btn-secondary cnpj-copy-btn" id="cnpjCopyBtn" onclick="cnpjCopiar()" style="font-size:12px;padding:8px 14px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              Copiar
+            </button>
+            <button class="btn btn-secondary" onclick="cnpjNova()" style="font-size:12px;padding:8px 14px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15"/></svg>
+              Nova Consulta
+            </button>
+          </div>
+        </div>
+
+        <!-- Grid de campos -->
+        <div class="cnpj-grid">
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">CNPJ</div>
+            <div class="cnpj-field-value accent" id="cnpjFCnpj">—</div>
+          </div>
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">Tipo</div>
+            <div class="cnpj-field-value" id="cnpjFTipo">—</div>
+          </div>
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">Porte</div>
+            <div class="cnpj-field-value" id="cnpjFPorte">—</div>
+          </div>
+
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">Situação</div>
+            <div class="cnpj-field-value" id="cnpjFSituacao">—</div>
+          </div>
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">Data de Abertura</div>
+            <div class="cnpj-field-value" id="cnpjFAbertura">—</div>
+          </div>
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">Última Atualização</div>
+            <div class="cnpj-field-value muted" id="cnpjFAtualizacao">—</div>
+          </div>
+
+          <div class="cnpj-field cnpj-half">
+            <div class="cnpj-field-label">Razão Social</div>
+            <div class="cnpj-field-value" id="cnpjFRazao">—</div>
+          </div>
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">Nome Fantasia</div>
+            <div class="cnpj-field-value" id="cnpjFFantasia">—</div>
+          </div>
+
+          <div class="cnpj-field cnpj-full">
+            <div class="cnpj-field-label">Endereço</div>
+            <div class="cnpj-field-value" id="cnpjFEndereco">—</div>
+          </div>
+
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">Município</div>
+            <div class="cnpj-field-value green" id="cnpjFMunicipio">—</div>
+          </div>
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">UF</div>
+            <div class="cnpj-field-value" id="cnpjFUf">—</div>
+          </div>
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">CEP</div>
+            <div class="cnpj-field-value" id="cnpjFCep">—</div>
+          </div>
+
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">Telefone</div>
+            <div class="cnpj-field-value" id="cnpjFTelefone">—</div>
+          </div>
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">E-mail</div>
+            <div class="cnpj-field-value" id="cnpjFEmail">—</div>
+          </div>
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">Capital Social</div>
+            <div class="cnpj-field-value" id="cnpjFCapital">—</div>
+          </div>
+
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">Natureza Jurídica</div>
+            <div class="cnpj-field-value" id="cnpjFNatureza">—</div>
+          </div>
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">Motivo Situação</div>
+            <div class="cnpj-field-value muted" id="cnpjFMotivo">—</div>
+          </div>
+          <div class="cnpj-field">
+            <div class="cnpj-field-label">Data Situação</div>
+            <div class="cnpj-field-value muted" id="cnpjFDataSit">—</div>
+          </div>
+        </div>
+
+        <!-- Atividade Principal -->
+        <div class="cnpj-section-title">Atividade Principal</div>
+        <div id="cnpjAtivPrincipal"></div>
+
+        <!-- Atividades Secundárias -->
+        <div id="cnpjAtivSecWrap">
+          <div class="cnpj-section-title">Atividades Secundárias</div>
+          <div id="cnpjAtivSecundarias"></div>
+        </div>
+
+        <!-- Quadro Societário -->
+        <div id="cnpjQSAWrap">
+          <div class="cnpj-section-title">Quadro Societário (QSA)</div>
+          <div id="cnpjQSA"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Histórico -->
+    <div class="cnpj-history-wrap" id="cnpjHistoryWrap" style="display:none">
+      <div class="cnpj-history-label">Histórico desta sessão</div>
+      <div class="cnpj-history-list" id="cnpjHistoryList"></div>
+    </div>
+
+  </div>
+  <!-- FIM TAB CNPJ -->
+
+  <!-- TAB IP — Consultar IP (ip-api.com) -->
+  <div class="tab-panel" id="panel-ip">
+
+    <div class="input-section">
+      <div class="section-label">Consultar IP</div>
+      <div class="ip-input-row">
+        <input
+          class="ip-input"
+          id="ipInput"
+          type="text"
+          maxlength="45"
+          placeholder="Ex: 24.48.0.1 ou deixe vazio para seu IP"
+          onkeydown="if(event.key==='Enter')ipConsultar()"
+        />
+        <button class="btn btn-primary" id="ipBtn" onclick="ipConsultar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+          Consultar
+        </button>
+        <button class="ip-myip-btn" onclick="ipConsultarMeu()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Meu IP
+        </button>
+        <button class="btn btn-secondary" onclick="ipLimpar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          Limpar
+        </button>
+      </div>
+      <div style="margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.6">
+        Powered by <strong style="color:#ccc">ip-api.com</strong> — geolocalização gratuita. Suporta IPv4 e IPv6. Limite: 45 req/min.
+      </div>
+      <div class="ip-error-banner" id="ipError"></div>
+    </div>
+
+    <!-- Loader -->
+    <div id="ipLoader" style="display:none;padding:32px 0;text-align:center">
+      <div style="display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;color:var(--muted)">
+        <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        Consultando ip-api.com…
+      </div>
+    </div>
+
+    <!-- Resultado -->
+    <div id="ipResult" style="display:none">
+      <div class="ip-card">
+
+        <!-- Cabeçalho -->
+        <div class="ip-card-head">
+          <div class="ip-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div class="ip-card-address" id="ipResAddr">—</div>
+            <div class="ip-card-sub">
+              <span class="ip-card-flag" id="ipResFlag"></span>
+              <span id="ipResLoc" style="letter-spacing:0.02em">—</span>
+              <span id="ipResCoord" class="ip-coord-pill" style="display:none"></span>
+            </div>
+          </div>
+          <div class="ip-card-actions">
+            <button class="btn btn-secondary ip-copy-btn" id="ipCopyBtn" onclick="ipCopiar()" style="font-size:12px;padding:8px 14px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              Copiar
+            </button>
+            <a class="btn btn-secondary" id="ipMapsBtn" href="#" target="_blank" rel="noopener" style="font-size:12px;padding:8px 14px;text-decoration:none;display:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+              Ver no Mapa
+            </a>
+            <button class="btn btn-secondary" onclick="ipNova()" style="font-size:12px;padding:8px 14px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15"/></svg>
+              Nova Consulta
+            </button>
+          </div>
+        </div>
+
+        <!-- Indicadores de ameaça / tipo -->
+        <div class="ip-threat-row" id="ipThreatRow"></div>
+
+        <!-- Grid de dados -->
+        <div class="ip-grid">
+          <div class="ip-field">
+            <div class="ip-field-label">Endereço IP</div>
+            <div class="ip-field-value cyan" id="ipFQuery">—</div>
+          </div>
+          <div class="ip-field">
+            <div class="ip-field-label">Status</div>
+            <div class="ip-field-value" id="ipFStatus">—</div>
+          </div>
+          <div class="ip-field">
+            <div class="ip-field-label">Tipo</div>
+            <div class="ip-field-value" id="ipFTipo">—</div>
+          </div>
+
+          <div class="ip-field">
+            <div class="ip-field-label">País</div>
+            <div class="ip-field-value green" id="ipFPais">—</div>
+          </div>
+          <div class="ip-field">
+            <div class="ip-field-label">Código País</div>
+            <div class="ip-field-value" id="ipFPaisCod">—</div>
+          </div>
+          <div class="ip-field">
+            <div class="ip-field-label">Continente</div>
+            <div class="ip-field-value" id="ipFContinente">—</div>
+          </div>
+
+          <div class="ip-field">
+            <div class="ip-field-label">Estado / Região</div>
+            <div class="ip-field-value" id="ipFRegiao">—</div>
+          </div>
+          <div class="ip-field">
+            <div class="ip-field-label">Cidade</div>
+            <div class="ip-field-value" id="ipFCidade">—</div>
+          </div>
+          <div class="ip-field">
+            <div class="ip-field-label">CEP / Código Postal</div>
+            <div class="ip-field-value muted" id="ipFZip">—</div>
+          </div>
+
+          <div class="ip-field">
+            <div class="ip-field-label">ISP</div>
+            <div class="ip-field-value" id="ipFIsp">—</div>
+          </div>
+          <div class="ip-field">
+            <div class="ip-field-label">Organização</div>
+            <div class="ip-field-value" id="ipFOrg">—</div>
+          </div>
+          <div class="ip-field">
+            <div class="ip-field-label">AS Number</div>
+            <div class="ip-field-value accent" id="ipFAs">—</div>
+          </div>
+
+          <div class="ip-field">
+            <div class="ip-field-label">Fuso Horário</div>
+            <div class="ip-field-value" id="ipFTimezone">—</div>
+          </div>
+          <div class="ip-field">
+            <div class="ip-field-label">Latitude</div>
+            <div class="ip-field-value muted" id="ipFLat">—</div>
+          </div>
+          <div class="ip-field">
+            <div class="ip-field-label">Longitude</div>
+            <div class="ip-field-value muted" id="ipFLon">—</div>
+          </div>
+        </div>
+
+        <!-- Mapa -->
+        <div class="ip-map-wrap" id="ipMapWrap" style="display:none">
+          <iframe id="ipMapIframe" frameborder="0" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Histórico -->
+    <div class="ip-history-wrap" id="ipHistoryWrap" style="display:none">
+      <div class="ip-history-label">Histórico desta sessão</div>
+      <div class="ip-history-list" id="ipHistoryList"></div>
+    </div>
+
+  </div>
+  <!-- FIM TAB IP -->
 
   </div>
 </div>
@@ -2418,17 +3356,6 @@ function switchTab(id, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('panel-' + id).classList.add('active');
   btn.classList.add('active');
-  /* Scroll tab into view on mobile */
-  setTimeout(() => {
-    const nav = document.getElementById('tabNav');
-    if (nav) {
-      const btnLeft = btn.offsetLeft;
-      const btnWidth = btn.offsetWidth;
-      const navWidth = nav.offsetWidth;
-      const scrollTarget = btnLeft - (navWidth / 2) + (btnWidth / 2);
-      nav.scrollTo({ left: scrollTarget, behavior: 'smooth' });
-    }
-  }, 50);
   /* Carrega SMS automaticamente na primeira vez que a aba é aberta */
   if (id === 'sms' && smsAllData.length === 0) {
     smsFetch();
@@ -5711,8 +6638,704 @@ function osintImgAbrir(engine) {
 }
 
 /* ════════════════════════════════
-   Username Lookup
+   CEP — Consulta ViaCEP
 ════════════════════════════════ */
+let cepHistoria = [];
+let cepDadosAtual = null;
+
+function cepMascara(val) {
+  const d = val.replace(/\D/g, '').slice(0, 8);
+  if (d.length > 5) return d.slice(0, 5) + '-' + d.slice(5);
+  return d;
+}
+
+function cepOnInput(el) {
+  const mascarado = cepMascara(el.value);
+  el.value = mascarado;
+  const digitos = mascarado.replace(/\D/g, '');
+  const badge = document.getElementById('cepValidBadge');
+  const btn   = document.getElementById('cepBtn');
+  if (digitos.length === 8) {
+    badge.className = 'cep-valid-badge ok';
+    badge.textContent = '✓ CEP válido';
+    btn.disabled = false;
+  } else if (digitos.length > 0) {
+    badge.className = 'cep-valid-badge err';
+    badge.textContent = `${digitos.length}/8 dígitos`;
+    btn.disabled = true;
+  } else {
+    badge.className = 'cep-valid-badge';
+    btn.disabled = true;
+  }
+  document.getElementById('cepError').classList.remove('visible');
+}
+
+function cepLimpar() {
+  document.getElementById('cepInput').value = '';
+  document.getElementById('cepValidBadge').className = 'cep-valid-badge';
+  document.getElementById('cepBtn').disabled = true;
+  document.getElementById('cepResult').style.display = 'none';
+  document.getElementById('cepLoader').style.display = 'none';
+  document.getElementById('cepError').classList.remove('visible');
+  document.getElementById('cepMapWrap').style.display = 'none';
+  cepDadosAtual = null;
+}
+
+function cepNova() {
+  cepLimpar();
+  document.getElementById('cepInput').focus();
+}
+
+function cepMostrarErro(msg) {
+  const el = document.getElementById('cepError');
+  el.textContent = '⚠ ' + msg;
+  el.classList.add('visible');
+}
+
+async function cepConsultar() {
+  const digitos = document.getElementById('cepInput').value.replace(/\D/g, '');
+  if (digitos.length !== 8) return;
+
+  const errEl    = document.getElementById('cepError');
+  const loader   = document.getElementById('cepLoader');
+  const resultEl = document.getElementById('cepResult');
+  const btn      = document.getElementById('cepBtn');
+
+  errEl.classList.remove('visible');
+  resultEl.style.display = 'none';
+  document.getElementById('cepMapWrap').style.display = 'none';
+  loader.style.display = 'block';
+  btn.disabled = true;
+
+  try {
+    const resp = await fetch(`https://viacep.com.br/ws/${digitos}/json/`, {
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+
+    if (data.erro) {
+      loader.style.display = 'none';
+      btn.disabled = false;
+      cepMostrarErro('CEP não encontrado. Verifique se o número está correto.');
+      return;
+    }
+
+    cepDadosAtual = data;
+    cepPreencherCard(data);
+    cepAdicionarHistorico(data);
+
+    loader.style.display = 'none';
+    resultEl.style.display = 'block';
+    btn.disabled = false;
+
+    // Mapa embed via Google Maps
+    const enderecoMapa = encodeURIComponent(
+      [data.logradouro, data.bairro, data.localidade, data.uf, 'Brasil'].filter(Boolean).join(', ')
+    );
+    const iframeEl = document.getElementById('cepMapIframe');
+    iframeEl.src = `https://maps.google.com/maps?q=${enderecoMapa}&output=embed&z=15`;
+    document.getElementById('cepMapWrap').style.display = 'block';
+
+    // Botão "Ver no Mapa"
+    document.getElementById('cepMapsBtn').href =
+      `https://www.google.com/maps/search/?api=1&query=${enderecoMapa}`;
+
+  } catch (e) {
+    loader.style.display = 'none';
+    btn.disabled = false;
+    if (e.name === 'AbortError' || e.name === 'TimeoutError') {
+      cepMostrarErro('Timeout ao consultar ViaCEP. Verifique sua conexão.');
+    } else {
+      cepMostrarErro('Erro ao consultar ViaCEP: ' + e.message);
+    }
+  }
+}
+
+function cepPreencherCard(d) {
+  const v = (val) => val || '<span style="color:var(--muted);font-style:italic">não informado</span>';
+  // Header
+  const cepFormatado = d.cep || '';
+  document.getElementById('cepResNum').textContent = cepFormatado;
+  document.getElementById('cepResLoc').textContent =
+    [d.localidade, d.uf].filter(Boolean).join(' — ') || '—';
+  // Campos
+  document.getElementById('cepFLogradouro').innerHTML  = v(d.logradouro);
+  document.getElementById('cepFComplemento').innerHTML = v(d.complemento);
+  document.getElementById('cepFBairro').innerHTML      = v(d.bairro);
+  document.getElementById('cepFLocalidade').innerHTML  = v(d.localidade);
+  document.getElementById('cepFUf').innerHTML          = v(d.uf);
+  document.getElementById('cepFIbge').innerHTML        = v(d.ibge);
+  document.getElementById('cepFDdd').innerHTML         = v(d.ddd);
+  document.getElementById('cepFGia').innerHTML         = v(d.gia);
+  document.getElementById('cepFSiafi').innerHTML       = v(d.siafi);
+}
+
+function cepCopiar() {
+  if (!cepDadosAtual) return;
+  const d = cepDadosAtual;
+  const texto = [
+    `CEP: ${d.cep}`,
+    `Logradouro: ${d.logradouro || '—'}`,
+    `Complemento: ${d.complemento || '—'}`,
+    `Bairro: ${d.bairro || '—'}`,
+    `Localidade: ${d.localidade || '—'}`,
+    `UF: ${d.uf || '—'}`,
+    `IBGE: ${d.ibge || '—'}`,
+    `DDD: ${d.ddd || '—'}`,
+    `GIA: ${d.gia || '—'}`,
+    `SIAFI: ${d.siafi || '—'}`,
+  ].join('\n');
+  navigator.clipboard.writeText(texto).then(() => {
+    const btn = document.getElementById('cepCopyBtn');
+    btn.classList.add('copied');
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px"><path d="M5 13l4 4L19 7"/></svg> Copiado!`;
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> Copiar`;
+    }, 2200);
+  });
+}
+
+function cepAdicionarHistorico(d) {
+  // Evita duplicatas consecutivas
+  if (cepHistoria.length && cepHistoria[0].cep === d.cep) return;
+  cepHistoria.unshift(d);
+  if (cepHistoria.length > 10) cepHistoria.pop();
+  cepRenderHistorico();
+}
+
+function cepRenderHistorico() {
+  const wrap = document.getElementById('cepHistoryWrap');
+  const list = document.getElementById('cepHistoryList');
+  if (!cepHistoria.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  list.innerHTML = cepHistoria.map(d => `
+    <div class="cep-history-chip" onclick="cepCarregarHistorico('${d.cep}')">
+      <span class="cep-h-cep">${d.cep}</span>
+      <span class="cep-h-loc">${[d.localidade, d.uf].filter(Boolean).join('/')||'—'}</span>
+    </div>
+  `).join('');
+}
+
+function cepCarregarHistorico(cep) {
+  document.getElementById('cepInput').value = cep.replace(/(\d{5})(\d{3})/, '$1-$2');
+  cepOnInput(document.getElementById('cepInput'));
+  cepConsultar();
+}
+
+
+/* ════════════════════════════════
+   CNPJ — Consulta ReceitaWS
+════════════════════════════════ */
+let cnpjHistoria    = [];
+let cnpjDadosAtual  = null;
+
+function cnpjMascara(val) {
+  const d = val.replace(/\D/g, '').slice(0, 14);
+  if (d.length <= 2)  return d;
+  if (d.length <= 5)  return d.slice(0,2) + '.' + d.slice(2);
+  if (d.length <= 8)  return d.slice(0,2) + '.' + d.slice(2,5) + '.' + d.slice(5);
+  if (d.length <= 12) return d.slice(0,2) + '.' + d.slice(2,5) + '.' + d.slice(5,8) + '/' + d.slice(8);
+  return d.slice(0,2) + '.' + d.slice(2,5) + '.' + d.slice(5,8) + '/' + d.slice(8,12) + '-' + d.slice(12);
+}
+
+function cnpjOnInput(el) {
+  el.value = cnpjMascara(el.value);
+  const digitos = el.value.replace(/\D/g, '');
+  const badge   = document.getElementById('cnpjValidBadge');
+  const btn     = document.getElementById('cnpjBtn');
+  if (digitos.length === 14) {
+    badge.className   = 'cnpj-valid-badge ok';
+    badge.textContent = '✓ CNPJ válido';
+    btn.disabled = false;
+  } else if (digitos.length > 0) {
+    badge.className   = 'cnpj-valid-badge err';
+    badge.textContent = `${digitos.length}/14 dígitos`;
+    btn.disabled = true;
+  } else {
+    badge.className = 'cnpj-valid-badge';
+    btn.disabled = true;
+  }
+  document.getElementById('cnpjError').classList.remove('visible');
+}
+
+function cnpjMostrarErro(msg) {
+  const el = document.getElementById('cnpjError');
+  el.textContent = '⚠ ' + msg;
+  el.classList.add('visible');
+}
+
+function cnpjLimpar() {
+  document.getElementById('cnpjInput').value = '';
+  document.getElementById('cnpjValidBadge').className = 'cnpj-valid-badge';
+  document.getElementById('cnpjBtn').disabled = true;
+  document.getElementById('cnpjResult').style.display = 'none';
+  document.getElementById('cnpjLoader').style.display = 'none';
+  document.getElementById('cnpjError').classList.remove('visible');
+  cnpjDadosAtual = null;
+}
+
+function cnpjNova() {
+  cnpjLimpar();
+  document.getElementById('cnpjInput').focus();
+}
+
+async function cnpjConsultar() {
+  const digitos = document.getElementById('cnpjInput').value.replace(/\D/g, '');
+  if (digitos.length !== 14) return;
+
+  const errEl    = document.getElementById('cnpjError');
+  const loader   = document.getElementById('cnpjLoader');
+  const resultEl = document.getElementById('cnpjResult');
+  const btn      = document.getElementById('cnpjBtn');
+
+  errEl.classList.remove('visible');
+  resultEl.style.display = 'none';
+  loader.style.display   = 'block';
+  btn.disabled = true;
+
+  try {
+    const resp = await fetch(`https://www.receitaws.com.br/v1/cnpj/${digitos}`, {
+      signal: AbortSignal.timeout(15000)
+    });
+
+    if (resp.status === 429) {
+      loader.style.display = 'none';
+      btn.disabled = false;
+      cnpjMostrarErro('Limite de consultas atingido (3/min). Aguarde um momento e tente novamente.');
+      return;
+    }
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+    const data = await resp.json();
+
+    if (data.status === 'ERROR' || data.message) {
+      loader.style.display = 'none';
+      btn.disabled = false;
+      cnpjMostrarErro(data.message || 'CNPJ não encontrado ou inválido.');
+      return;
+    }
+
+    cnpjDadosAtual = data;
+    cnpjPreencherCard(data);
+    cnpjAdicionarHistorico(data);
+
+    loader.style.display   = 'none';
+    resultEl.style.display = 'block';
+    btn.disabled = false;
+
+  } catch (e) {
+    loader.style.display = 'none';
+    btn.disabled = false;
+    if (e.name === 'AbortError' || e.name === 'TimeoutError') {
+      cnpjMostrarErro('Timeout ao consultar ReceitaWS. Verifique sua conexão.');
+    } else {
+      cnpjMostrarErro('Erro ao consultar ReceitaWS: ' + e.message);
+    }
+  }
+}
+
+function cnpjPreencherCard(d) {
+  const v = (val, cls) => (val && val !== 'NÃO INFORMADO' && val.trim())
+    ? `<span${cls ? ` class="${cls}"` : ''}>${_escO(val)}</span>`
+    : `<span style="color:var(--muted);font-style:italic">não informado</span>`;
+
+  // Header
+  document.getElementById('cnpjResNome').textContent    = d.nome || d.fantasia || '—';
+  document.getElementById('cnpjResNumero').textContent  = d.cnpj || '—';
+
+  // Situação badge
+  const sit     = (d.situacao || '').toUpperCase();
+  const sitEl   = document.getElementById('cnpjResSituacao');
+  const sitMap  = { 'ATIVA': 'ativa', 'BAIXADA': 'baixada', 'INAPTA': 'inapta' };
+  const sitClass = sitMap[sit] || 'outro';
+  sitEl.className   = 'cnpj-situacao-badge ' + sitClass;
+  sitEl.innerHTML   = `<span class="cnpj-sit-dot"></span>${d.situacao || '—'}`;
+
+  // Campos individuais
+  document.getElementById('cnpjFCnpj').innerHTML       = v(d.cnpj, 'accent');
+  document.getElementById('cnpjFTipo').innerHTML       = v(d.tipo);
+  document.getElementById('cnpjFPorte').innerHTML      = v(d.porte);
+  document.getElementById('cnpjFSituacao').innerHTML   = v(d.situacao);
+  document.getElementById('cnpjFAbertura').innerHTML   = v(d.abertura);
+  document.getElementById('cnpjFAtualizacao').innerHTML= v(d.ultima_atualizacao || d.data_situacao);
+  document.getElementById('cnpjFRazao').innerHTML      = v(d.nome);
+  document.getElementById('cnpjFFantasia').innerHTML   = v(d.fantasia);
+  document.getElementById('cnpjFMunicipio').innerHTML  = v(d.municipio, 'green');
+  document.getElementById('cnpjFUf').innerHTML         = v(d.uf);
+  document.getElementById('cnpjFCep').innerHTML        = v(d.cep);
+  document.getElementById('cnpjFTelefone').innerHTML   = v(d.telefone);
+  document.getElementById('cnpjFEmail').innerHTML      = v(d.email);
+  document.getElementById('cnpjFNatureza').innerHTML   = v(d.natureza_juridica);
+  document.getElementById('cnpjFMotivo').innerHTML     = v(d.motivo_situacao);
+  document.getElementById('cnpjFDataSit').innerHTML    = v(d.data_situacao);
+
+  // Capital Social
+  const cap = d.capital_social
+    ? 'R$ ' + parseFloat(d.capital_social).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+    : null;
+  document.getElementById('cnpjFCapital').innerHTML = v(cap);
+
+  // Endereço completo
+  const endParts = [d.logradouro, d.numero, d.complemento, d.bairro].filter(p => p && p !== 'NÃO INFORMADO' && p.trim());
+  document.getElementById('cnpjFEndereco').innerHTML = v(endParts.join(', ') || null);
+
+  // Atividade Principal
+  const apEl = document.getElementById('cnpjAtivPrincipal');
+  const ativPrinc = Array.isArray(d.atividade_principal) ? d.atividade_principal : [];
+  apEl.innerHTML = ativPrinc.length
+    ? ativPrinc.map(a => `
+        <div class="cnpj-atividade-item">
+          <span class="cnpj-ativ-code">${_escO(a.code || '—')}</span>
+          <span class="cnpj-ativ-desc">${_escO(a.text || '—')}</span>
+          <span class="cnpj-ativ-principal">Principal</span>
+        </div>`).join('')
+    : `<div style="padding:14px 22px;font-family:var(--mono);font-size:11px;color:var(--muted)">Não informado</div>`;
+
+  // Atividades Secundárias
+  const asEl   = document.getElementById('cnpjAtivSecundarias');
+  const asWrap = document.getElementById('cnpjAtivSecWrap');
+  const ativSec = Array.isArray(d.atividades_secundarias)
+    ? d.atividades_secundarias.filter(a => a.code && a.code !== '0000-0/00')
+    : [];
+  if (ativSec.length) {
+    asWrap.style.display = 'block';
+    asEl.innerHTML = ativSec.map(a => `
+      <div class="cnpj-atividade-item">
+        <span class="cnpj-ativ-code">${_escO(a.code || '—')}</span>
+        <span class="cnpj-ativ-desc">${_escO(a.text || '—')}</span>
+      </div>`).join('');
+  } else {
+    asWrap.style.display = 'none';
+  }
+
+  // QSA (Quadro Societário)
+  const qsaEl   = document.getElementById('cnpjQSA');
+  const qsaWrap = document.getElementById('cnpjQSAWrap');
+  const qsa = Array.isArray(d.qsa) ? d.qsa : [];
+  if (qsa.length) {
+    qsaWrap.style.display = 'block';
+    qsaEl.innerHTML = qsa.map(s => {
+      const inicial = (s.nome || '?')[0].toUpperCase();
+      return `
+        <div class="cnpj-socio-item">
+          <div class="cnpj-socio-avatar">${_escO(inicial)}</div>
+          <div>
+            <div class="cnpj-socio-nome">${_escO(s.nome || '—')}</div>
+            <div class="cnpj-socio-qual">${_escO(s.qual || '—')}</div>
+          </div>
+          ${s.pais_origem ? `<span style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:auto">${_escO(s.pais_origem)}</span>` : '<span class="cnpj-socio-since"></span>'}
+        </div>`;
+    }).join('');
+  } else {
+    qsaWrap.style.display = 'none';
+  }
+}
+
+function cnpjCopiar() {
+  if (!cnpjDadosAtual) return;
+  const d = cnpjDadosAtual;
+  const ativPrinc = (Array.isArray(d.atividade_principal) ? d.atividade_principal : [])
+    .map(a => `  ${a.code} — ${a.text}`).join('\n');
+  const qsa = (Array.isArray(d.qsa) ? d.qsa : [])
+    .map(s => `  ${s.nome} (${s.qual})`).join('\n');
+  const texto = [
+    `CNPJ: ${d.cnpj}`,
+    `Razão Social: ${d.nome || '—'}`,
+    `Fantasia: ${d.fantasia || '—'}`,
+    `Situação: ${d.situacao || '—'}`,
+    `Abertura: ${d.abertura || '—'}`,
+    `Tipo: ${d.tipo || '—'}`,
+    `Porte: ${d.porte || '—'}`,
+    `Natureza Jurídica: ${d.natureza_juridica || '—'}`,
+    `Capital Social: ${d.capital_social || '—'}`,
+    `Telefone: ${d.telefone || '—'}`,
+    `E-mail: ${d.email || '—'}`,
+    `Endereço: ${[d.logradouro, d.numero, d.complemento, d.bairro].filter(Boolean).join(', ')}`,
+    `Município: ${d.municipio || '—'} / ${d.uf || '—'}`,
+    `CEP: ${d.cep || '—'}`,
+    ativPrinc ? `\nAtividade Principal:\n${ativPrinc}` : '',
+    qsa ? `\nQuadro Societário:\n${qsa}` : '',
+  ].filter(Boolean).join('\n');
+
+  navigator.clipboard.writeText(texto).then(() => {
+    const btn = document.getElementById('cnpjCopyBtn');
+    btn.classList.add('copied');
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px"><path d="M5 13l4 4L19 7"/></svg> Copiado!`;
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> Copiar`;
+    }, 2200);
+  });
+}
+
+function cnpjAdicionarHistorico(d) {
+  if (cnpjHistoria.length && cnpjHistoria[0].cnpj === d.cnpj) return;
+  cnpjHistoria.unshift(d);
+  if (cnpjHistoria.length > 8) cnpjHistoria.pop();
+  cnpjRenderHistorico();
+}
+
+function cnpjRenderHistorico() {
+  const wrap = document.getElementById('cnpjHistoryWrap');
+  const list = document.getElementById('cnpjHistoryList');
+  if (!cnpjHistoria.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  list.innerHTML = cnpjHistoria.map(d => `
+    <div class="cnpj-history-chip" onclick="cnpjCarregarHistorico('${(d.cnpj||'').replace(/\D/g,'')}')">
+      <span class="cnpj-h-num">${d.cnpj || '—'}</span>
+      <span class="cnpj-h-nome">${_escO((d.fantasia || d.nome || '').slice(0, 30))}</span>
+    </div>
+  `).join('');
+}
+
+function cnpjCarregarHistorico(digitos) {
+  document.getElementById('cnpjInput').value = cnpjMascara(digitos);
+  cnpjOnInput(document.getElementById('cnpjInput'));
+  cnpjConsultar();
+}
+
+/* ════════════════════════════════
+   IP — Consulta ip-api.com
+════════════════════════════════ */
+let ipHistoria   = [];
+let ipDadosAtual = null;
+
+/* Mapa de continentes por código de país */
+const IP_CONTINENT_MAP = {
+  AF:'África',AN:'Antártica',AS:'Ásia',EU:'Europa',
+  NA:'América do Norte',OC:'Oceania',SA:'América do Sul'
+};
+
+/* Bandeiras de país via emoji (unicode flag) */
+function ipBandeira(countryCode) {
+  if (!countryCode || countryCode.length !== 2) return '';
+  const pts = countryCode.toUpperCase().split('').map(c => 0x1F1E6 + c.charCodeAt(0) - 65);
+  return String.fromCodePoint(...pts);
+}
+
+function ipMostrarErro(msg) {
+  const el = document.getElementById('ipError');
+  el.textContent = '⚠ ' + msg;
+  el.classList.add('visible');
+}
+
+function ipLimpar() {
+  document.getElementById('ipInput').value = '';
+  document.getElementById('ipResult').style.display  = 'none';
+  document.getElementById('ipLoader').style.display  = 'none';
+  document.getElementById('ipMapWrap').style.display = 'none';
+  document.getElementById('ipError').classList.remove('visible');
+  ipDadosAtual = null;
+}
+
+function ipNova() { ipLimpar(); document.getElementById('ipInput').focus(); }
+
+async function ipConsultarMeu() {
+  document.getElementById('ipInput').value = '';
+  await ipConsultar();
+}
+
+async function ipConsultar() {
+  const raw    = document.getElementById('ipInput').value.trim();
+  const target = raw || ''; // vazio = ip do visitante
+
+  const errEl    = document.getElementById('ipError');
+  const loader   = document.getElementById('ipLoader');
+  const resultEl = document.getElementById('ipResult');
+  const btn      = document.getElementById('ipBtn');
+
+  errEl.classList.remove('visible');
+  resultEl.style.display  = 'none';
+  document.getElementById('ipMapWrap').style.display = 'none';
+  loader.style.display = 'block';
+  btn.disabled = true;
+
+  try {
+    /* Campos extras: continent, mobile, proxy, hosting */
+    const fields = 'status,message,continent,continentCode,country,countryCode,' +
+                   'region,regionName,city,zip,lat,lon,timezone,isp,org,as,asname,' +
+                   'mobile,proxy,hosting,query';
+    const url = target
+      ? `https://ip-api.com/json/${encodeURIComponent(target)}?fields=${fields}&lang=pt-BR`
+      : `https://ip-api.com/json/?fields=${fields}&lang=pt-BR`;
+
+    const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+
+    if (data.status === 'fail') {
+      loader.style.display = 'none';
+      btn.disabled = false;
+      ipMostrarErro(data.message || 'IP inválido ou não encontrado.');
+      return;
+    }
+
+    ipDadosAtual = data;
+    ipPreencherCard(data);
+    ipAdicionarHistorico(data);
+
+    loader.style.display   = 'none';
+    resultEl.style.display = 'block';
+    btn.disabled = false;
+
+  } catch (e) {
+    loader.style.display = 'none';
+    btn.disabled = false;
+    if (e.name === 'AbortError' || e.name === 'TimeoutError') {
+      ipMostrarErro('Timeout ao consultar ip-api.com. Verifique sua conexão.');
+    } else {
+      ipMostrarErro('Erro: ' + e.message);
+    }
+  }
+}
+
+function ipPreencherCard(d) {
+  const v = val => (val !== undefined && val !== null && val !== '')
+    ? String(val)
+    : null;
+  const render = (val, cls) => v(val)
+    ? (cls ? `<span class="${cls}">${_escO(String(val))}</span>` : _escO(String(val)))
+    : `<span style="color:var(--muted);font-style:italic">—</span>`;
+
+  // Header
+  document.getElementById('ipResAddr').textContent = d.query || '—';
+  const flag = ipBandeira(d.countryCode);
+  document.getElementById('ipResFlag').textContent = flag;
+
+  const locParts = [d.city, d.regionName, d.country].filter(Boolean);
+  document.getElementById('ipResLoc').textContent = locParts.join(', ') || '—';
+
+  const coordEl = document.getElementById('ipResCoord');
+  if (d.lat && d.lon) {
+    coordEl.style.display = 'inline-flex';
+    coordEl.textContent   = `${d.lat.toFixed(4)}, ${d.lon.toFixed(4)}`;
+  } else {
+    coordEl.style.display = 'none';
+  }
+
+  // Threat / tipo chips
+  const threatEl = document.getElementById('ipThreatRow');
+  const chips = [];
+
+  chips.push(d.mobile
+    ? `<span class="ip-threat-chip danger">📱 Mobile</span>`
+    : `<span class="ip-threat-chip safe">🖥 Fixo / Banda Larga</span>`);
+
+  chips.push(d.proxy
+    ? `<span class="ip-threat-chip danger">⚠ Proxy / VPN</span>`
+    : `<span class="ip-threat-chip safe">✓ Sem Proxy</span>`);
+
+  chips.push(d.hosting
+    ? `<span class="ip-threat-chip danger">🏢 Datacenter / Hosting</span>`
+    : `<span class="ip-threat-chip safe">🏠 IP Residencial</span>`);
+
+  if (d.countryCode)
+    chips.push(`<span class="ip-threat-chip neutral">${flag} ${d.countryCode}</span>`);
+
+  threatEl.innerHTML = chips.join('');
+
+  // Grid
+  document.getElementById('ipFQuery').innerHTML  = render(d.query, 'cyan');
+  const statusText = d.status === 'success' ? 'Sucesso ✓' : (d.status || '—');
+  document.getElementById('ipFStatus').innerHTML = `<span class="${d.status==='success'?'green':''}">${_escO(statusText)}</span>`;
+
+  // Tipo de IP
+  const tipos = [];
+  if (d.mobile)  tipos.push('Mobile');
+  if (d.proxy)   tipos.push('Proxy/VPN');
+  if (d.hosting) tipos.push('Datacenter');
+  if (!tipos.length) tipos.push('Residencial');
+  document.getElementById('ipFTipo').innerHTML = `<span style="color:${d.proxy||d.hosting?'var(--yellow)':'var(--green)'}">${_escO(tipos.join(' · '))}</span>`;
+
+  document.getElementById('ipFPais').innerHTML      = render(d.country,      'green');
+  document.getElementById('ipFPaisCod').innerHTML   = render(d.countryCode);
+  const continent = d.continent || (d.continentCode ? IP_CONTINENT_MAP[d.continentCode] : null);
+  document.getElementById('ipFContinente').innerHTML= render(continent);
+  document.getElementById('ipFRegiao').innerHTML    = render(d.regionName);
+  document.getElementById('ipFCidade').innerHTML    = render(d.city);
+  document.getElementById('ipFZip').innerHTML       = render(d.zip, 'muted');
+  document.getElementById('ipFIsp').innerHTML       = render(d.isp);
+  document.getElementById('ipFOrg').innerHTML       = render(d.org);
+  document.getElementById('ipFAs').innerHTML        = render(d.as, 'accent');
+  document.getElementById('ipFTimezone').innerHTML  = render(d.timezone);
+  document.getElementById('ipFLat').innerHTML       = render(d.lat != null ? d.lat.toFixed(6) : null, 'muted');
+  document.getElementById('ipFLon').innerHTML       = render(d.lon != null ? d.lon.toFixed(6) : null, 'muted');
+
+  // Mapa e botão Maps
+  if (d.lat && d.lon) {
+    const q = encodeURIComponent(`${d.lat},${d.lon}`);
+    document.getElementById('ipMapIframe').src =
+      `https://maps.google.com/maps?q=${q}&output=embed&z=10`;
+    document.getElementById('ipMapWrap').style.display = 'block';
+
+    const mapsBtn = document.getElementById('ipMapsBtn');
+    mapsBtn.href  = `https://www.google.com/maps/search/?api=1&query=${q}`;
+    mapsBtn.style.display = 'inline-flex';
+  } else {
+    document.getElementById('ipMapWrap').style.display = 'none';
+    document.getElementById('ipMapsBtn').style.display = 'none';
+  }
+}
+
+function ipCopiar() {
+  if (!ipDadosAtual) return;
+  const d = ipDadosAtual;
+  const texto = [
+    `IP: ${d.query}`,
+    `País: ${d.country || '—'} (${d.countryCode || '—'})`,
+    `Continente: ${d.continent || IP_CONTINENT_MAP[d.continentCode] || '—'}`,
+    `Estado/Região: ${d.regionName || '—'}`,
+    `Cidade: ${d.city || '—'}`,
+    `CEP: ${d.zip || '—'}`,
+    `ISP: ${d.isp || '—'}`,
+    `Organização: ${d.org || '—'}`,
+    `AS: ${d.as || '—'}`,
+    `Fuso Horário: ${d.timezone || '—'}`,
+    `Latitude: ${d.lat ?? '—'}`,
+    `Longitude: ${d.lon ?? '—'}`,
+    `Mobile: ${d.mobile ? 'Sim' : 'Não'}`,
+    `Proxy/VPN: ${d.proxy ? 'Sim' : 'Não'}`,
+    `Hosting/DC: ${d.hosting ? 'Sim' : 'Não'}`,
+  ].join('\n');
+
+  navigator.clipboard.writeText(texto).then(() => {
+    const btn = document.getElementById('ipCopyBtn');
+    btn.classList.add('copied');
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px"><path d="M5 13l4 4L19 7"/></svg> Copiado!`;
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> Copiar`;
+    }, 2200);
+  });
+}
+
+function ipAdicionarHistorico(d) {
+  if (ipHistoria.length && ipHistoria[0].query === d.query) return;
+  ipHistoria.unshift(d);
+  if (ipHistoria.length > 10) ipHistoria.pop();
+  ipRenderHistorico();
+}
+
+function ipRenderHistorico() {
+  const wrap = document.getElementById('ipHistoryWrap');
+  const list = document.getElementById('ipHistoryList');
+  if (!ipHistoria.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  list.innerHTML = ipHistoria.map(d => `
+    <div class="ip-history-chip" onclick="ipCarregarHistorico('${_escO(d.query)}')">
+      <span class="ip-h-addr">${_escO(d.query)}</span>
+      <span class="ip-h-loc">${ipBandeira(d.countryCode)} ${_escO([d.city, d.countryCode].filter(Boolean).join('/')|| '—')}</span>
+    </div>
+  `).join('');
+}
+
+function ipCarregarHistorico(addr) {
+  document.getElementById('ipInput').value = addr;
+  ipConsultar();
+}
+
 const OSINT_PLATFORMS = [
   { name: 'Instagram',  url: 'https://instagram.com/{}' },
   { name: 'Twitter/X',  url: 'https://x.com/{}' },
