@@ -7765,55 +7765,83 @@ const OP_PER_PAGE  = 24;
 
 function opLoadFile(file) {
   const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      const text = e.target.result;
-      let records = [];
-
-      /* Tenta JSON array / objeto */
-      try {
-        const parsed = JSON.parse(text);
-        if (Array.isArray(parsed)) records = parsed;
-        else if (typeof parsed === 'object' && parsed !== null) records = [parsed];
-      } catch(_) {
-        /* Tenta JSONL — um objeto por linha */
-        records = text.split('\n')
-          .map(l => l.trim()).filter(Boolean)
-          .map(l => { try { return JSON.parse(l); } catch(_){ return null; } })
-          .filter(Boolean);
-      }
-
-      if (!records.length) throw new Error('Nenhum registro válido encontrado.');
-
-      opAllRecords   = records;
-      opFiltered     = records;
-      opPage         = 1;
-
-      /* Detectar campos presentes */
-      const fieldSet = new Set();
-      records.slice(0, 200).forEach(r => Object.keys(r).forEach(k => fieldSet.add(k)));
-      opFields       = [...fieldSet];
-      opActiveFields = [...opFields]; // todos ativos por padrão
-
-      /* UI */
-      document.getElementById('opFileName').textContent = file.name;
-      document.getElementById('opFileMeta').textContent =
-        `${records.length.toLocaleString('pt-BR')} registros · ${opFields.length} campos · ${(file.size/1024).toFixed(1)} KB`;
-      document.getElementById('opFileBar').classList.add('visible');
-      document.getElementById('opDropzone').style.display = 'none';
-      document.getElementById('opSearchPanel').style.display = 'block';
-      document.getElementById('opSearchInput').value = '';
-      document.getElementById('opSearchInput').placeholder =
-        `Buscar em ${records.length.toLocaleString('pt-BR')} registros — nome, telefone, e-mail, ID...`;
-
-      opBuildFilterChips();
-      opRender();
-
-    } catch(err) {
-      alert('Erro ao ler o arquivo: ' + err.message);
-    }
-  };
+  reader.onerror = () => alert('Erro ao ler o arquivo.');
+  reader.onload  = e  => opProcessText(e.target.result, file);
   reader.readAsText(file, 'utf-8');
+
+  /* Fallback latin-1 após 1.2s caso UTF-8 não encontre registros */
+  setTimeout(() => {
+    if (!opAllRecords.length) {
+      const r2 = new FileReader();
+      r2.onload = e2 => opProcessText(e2.target.result, file);
+      r2.readAsText(file, 'latin-1');
+    }
+  }, 1200);
+}
+
+function opProcessText(text, file) {
+  if (opAllRecords.length) return; /* evita duplo processamento */
+  try {
+    let records = [];
+
+    /* 1) JSON puro — array ou objeto único */
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed))                              records = parsed;
+      else if (typeof parsed === 'object' && parsed !== null) records = [parsed];
+    } catch(_) {}
+
+    /* 2) JSONL — um objeto por linha */
+    if (!records.length) {
+      records = text
+        .split(/\r?\n|\r/)
+        .map(l => l.trim())
+        .filter(l => l.startsWith('{') || l.startsWith('['))
+        .map(l => { try { return JSON.parse(l); } catch(_) { return null; } })
+        .filter(Boolean)
+        .flat();
+    }
+
+    /* 3) Objetos JSON concatenados sem separador explícito */
+    if (!records.length) {
+      const rx = /\{(?:[^{}]|\{[^{}]*\})*\}/g;
+      records = (text.match(rx) || [])
+        .map(m => { try { return JSON.parse(m); } catch(_) { return null; } })
+        .filter(Boolean);
+    }
+
+    if (!records.length) {
+      alert('Nenhum registro válido encontrado.\nVerifique se o arquivo contém JSON ou JSONL válido.');
+      return;
+    }
+
+    opAllRecords   = records;
+    opFiltered     = records;
+    opPage         = 1;
+
+    /* Detectar campos (amostra de até 500 registros) */
+    const fieldSet = new Set();
+    records.slice(0, 500).forEach(r => Object.keys(r).forEach(k => fieldSet.add(k)));
+    opFields       = [...fieldSet];
+    opActiveFields = [...opFields];
+
+    /* Atualizar UI */
+    document.getElementById('opFileName').textContent = file.name;
+    document.getElementById('opFileMeta').textContent =
+      `${records.length.toLocaleString('pt-BR')} registros · ${opFields.length} campos · ${(file.size / 1024).toFixed(1)} KB`;
+    document.getElementById('opFileBar').classList.add('visible');
+    document.getElementById('opDropzone').style.display   = 'none';
+    document.getElementById('opSearchPanel').style.display = 'block';
+    document.getElementById('opSearchInput').value       = '';
+    document.getElementById('opSearchInput').placeholder =
+      `Buscar em ${records.length.toLocaleString('pt-BR')} registros...`;
+
+    opBuildFilterChips();
+    opRender();
+
+  } catch(err) {
+    alert('Erro ao processar o arquivo: ' + err.message);
+  }
 }
 
 function opClearFile() {
