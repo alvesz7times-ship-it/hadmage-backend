@@ -1879,7 +1879,7 @@
     margin-top: 18px;
   }
   .op-search-input {
-    width: 100%;
+    flex: 1; min-width: 220px;
     background: var(--bg); border: 1px solid var(--border);
     border-radius: 10px; color: var(--text); font-family: var(--mono);
     font-size: 14px; padding: 12px 16px; outline: none;
@@ -3078,8 +3078,8 @@
           placeholder="Buscar por qualquer campo — nome, telefone, e-mail, ID..."
           oninput="opSearchDebounced()"
         />
+        <div class="op-search-count" id="opSearchCount"></div>
       </div>
-      <div class="op-search-count" id="opSearchCount" style="margin-top:6px;text-align:right"></div>
 
       <div class="op-filter-row" id="opFilterRow"></div>
 
