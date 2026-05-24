@@ -1798,6 +1798,262 @@
   }
 
   /* ══════════════════════════════════════════════
+     OSINT PLUS TAB — estilos
+  ══════════════════════════════════════════════ */
+
+  /* Drop zone */
+  .op-dropzone {
+    border: 2px dashed var(--border); border-radius: 14px;
+    padding: 48px 24px; text-align: center; cursor: pointer;
+    transition: all 0.25s; background: var(--surface);
+    position: relative;
+  }
+  .op-dropzone:hover,
+  .op-dropzone.dragover {
+    border-color: var(--green-dim);
+    background: rgba(0,229,160,0.04);
+  }
+  .op-dropzone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .op-dropzone-icon {
+    width: 48px; height: 48px; border-radius: 14px; margin: 0 auto 14px;
+    background: rgba(0,229,160,0.08); border: 1px solid rgba(0,229,160,0.2);
+    display: flex; align-items: center; justify-content: center; color: var(--green);
+  }
+  .op-dropzone-icon svg { width: 24px; height: 24px; }
+  .op-dropzone-title {
+    font-family: var(--mono); font-size: 14px; font-weight: 700;
+    color: var(--text); margin-bottom: 6px;
+  }
+  .op-dropzone-sub {
+    font-family: var(--mono); font-size: 11px; color: var(--muted); line-height: 1.6;
+  }
+  .op-dropzone-sub strong { color: var(--green); }
+
+  /* Barra de status do arquivo carregado */
+  .op-file-bar {
+    display: none; align-items: center; gap: 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 16px; margin-top: 14px;
+  }
+  .op-file-bar.visible { display: flex; }
+  .op-file-icon {
+    width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0;
+    background: rgba(0,229,160,0.08); border: 1px solid rgba(0,229,160,0.2);
+    display: flex; align-items: center; justify-content: center; color: var(--green);
+  }
+  .op-file-icon svg { width: 16px; height: 16px; }
+  .op-file-name { font-family: var(--mono); font-size: 12px; color: var(--text); font-weight: 700; }
+  .op-file-meta { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .op-file-clear {
+    margin-left: auto; background: none; border: 1px solid var(--border);
+    border-radius: 6px; color: var(--muted); padding: 4px 10px;
+    font-family: var(--mono); font-size: 10px; cursor: pointer; transition: all 0.2s;
+  }
+  .op-file-clear:hover { border-color: var(--red); color: var(--red); }
+
+  /* Barra de busca */
+  .op-search-bar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    margin-top: 18px;
+  }
+  .op-search-input {
+    flex: 1; min-width: 220px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text); font-family: var(--mono);
+    font-size: 14px; padding: 12px 16px; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .op-search-input:focus { border-color: var(--green-dim); box-shadow: 0 0 0 3px var(--green-glow); }
+  .op-search-input::placeholder { color: var(--muted); }
+  .op-search-count {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    white-space: nowrap; padding: 0 4px;
+  }
+  .op-search-count strong { color: var(--green); }
+
+  /* Filtros de campo */
+  .op-filter-row {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px;
+  }
+  .op-filter-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface); font-family: var(--mono); font-size: 10px;
+    color: var(--muted); cursor: pointer; transition: all 0.2s;
+    letter-spacing: 0.04em; user-select: none;
+  }
+  .op-filter-chip:hover { border-color: var(--green-dim); color: var(--green); }
+  .op-filter-chip.active {
+    border-color: var(--green-dim); color: var(--green);
+    background: rgba(0,229,160,0.08);
+  }
+  .op-filter-chip .op-fc-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0;
+  }
+
+  /* Grid de resultados */
+  .op-results-header {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 10px; margin-top: 22px; margin-bottom: 14px;
+  }
+  .op-results-title {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .op-results-title::after { content: ''; flex: 1; height: 1px; background: var(--border); width: 60px; }
+  .op-results-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .op-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px;
+  }
+
+  /* Card de registro */
+  .op-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; transition: border-color 0.2s, transform 0.15s;
+    animation: fadeUp 0.25s ease both; cursor: pointer;
+  }
+  .op-card:hover { border-color: var(--green-dim); transform: translateY(-1px); }
+  .op-card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .op-card-avatar {
+    width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(0,229,160,0.10); border: 1px solid rgba(0,229,160,0.22);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--sans); font-size: 14px; font-weight: 800;
+    color: var(--green); text-transform: uppercase;
+  }
+  .op-card-name {
+    font-family: var(--mono); font-size: 13px; font-weight: 700;
+    color: var(--text); word-break: break-word; flex: 1;
+  }
+  .op-card-id {
+    font-family: var(--mono); font-size: 9px; color: var(--muted);
+    margin-top: 2px; letter-spacing: 0.04em;
+  }
+  .op-card-unsub {
+    font-family: var(--mono); font-size: 9px; font-weight: 700;
+    padding: 2px 8px; border-radius: 5px; white-space: nowrap; flex-shrink: 0;
+  }
+  .op-card-unsub.y { background: rgba(255,77,77,0.10); color: var(--red); border: 1px solid rgba(255,77,77,0.25); }
+  .op-card-unsub.n { background: rgba(0,229,160,0.08); color: var(--green); border: 1px solid rgba(0,229,160,0.22); }
+
+  .op-card-body { padding: 10px 14px; display: flex; flex-direction: column; gap: 5px; }
+  .op-card-row {
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  .op-card-key {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted); min-width: 54px;
+    flex-shrink: 0; padding-top: 1px;
+  }
+  .op-card-val {
+    font-family: var(--mono); font-size: 11px; color: var(--text);
+    word-break: break-all; line-height: 1.4; flex: 1;
+  }
+  .op-card-val.green  { color: var(--green); }
+  .op-card-val.cyan   { color: var(--cyan); }
+  .op-card-val.accent { color: var(--accent); }
+  .op-card-val.muted  { color: var(--muted); }
+
+  /* Modal de detalhe */
+  .op-modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,0.75); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .op-modal-overlay.open { display: flex; }
+  .op-modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 18px; width: 100%; max-width: 560px; max-height: 88vh;
+    overflow-y: auto; animation: fadeUp 0.2s ease both;
+  }
+  .op-modal-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 18px 20px; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: var(--surface); z-index: 1;
+  }
+  .op-modal-avatar {
+    width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(0,229,160,0.10); border: 1px solid rgba(0,229,160,0.22);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--sans); font-size: 18px; font-weight: 800; color: var(--green);
+    text-transform: uppercase;
+  }
+  .op-modal-name { font-family: var(--mono); font-size: 16px; font-weight: 700; color: var(--text); }
+  .op-modal-sub  { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 3px; }
+  .op-modal-close {
+    margin-left: auto; width: 30px; height: 30px; border-radius: 8px;
+    border: 1px solid var(--border); background: none; color: var(--muted);
+    cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s; flex-shrink: 0;
+  }
+  .op-modal-close:hover { border-color: var(--red); color: var(--red); }
+  .op-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 0; }
+  .op-modal-field {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .op-modal-field:last-child { border-bottom: none; }
+  .op-modal-key {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted); min-width: 100px;
+    flex-shrink: 0; padding-top: 2px;
+  }
+  .op-modal-val {
+    font-family: var(--mono); font-size: 12px; color: var(--text);
+    word-break: break-all; line-height: 1.5; flex: 1;
+  }
+  .op-modal-val.green  { color: var(--green); font-weight: 700; }
+  .op-modal-val.cyan   { color: var(--cyan);  font-weight: 700; }
+  .op-modal-val.accent { color: var(--accent);font-weight: 700; }
+  .op-modal-val.red    { color: var(--red);   font-weight: 700; }
+  .op-modal-val.muted  { color: var(--muted); }
+  .op-modal-footer {
+    padding: 14px 20px; border-top: 1px solid var(--border);
+    display: flex; gap: 8px; flex-wrap: wrap;
+    position: sticky; bottom: 0; background: var(--surface);
+  }
+
+  /* Paginação */
+  .op-pagination {
+    display: flex; align-items: center; justify-content: center;
+    gap: 6px; margin-top: 20px; flex-wrap: wrap;
+  }
+  .op-page-btn {
+    width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--muted); font-family: var(--mono);
+    font-size: 12px; cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .op-page-btn:hover { border-color: var(--green-dim); color: var(--green); }
+  .op-page-btn.active { border-color: var(--green-dim); color: var(--green); background: rgba(0,229,160,0.08); font-weight: 700; }
+  .op-page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .op-page-info { font-family: var(--mono); font-size: 11px; color: var(--muted); padding: 0 8px; }
+
+  /* Estado vazio */
+  .op-empty {
+    text-align: center; padding: 48px 20px;
+    font-family: var(--mono); font-size: 12px; color: var(--muted); line-height: 1.8;
+  }
+  .op-empty-icon { font-size: 32px; margin-bottom: 12px; opacity: 0.5; }
+
+  /* Copy feedback */
+  .op-copy-copied { background: rgba(0,229,160,0.10) !important; color: var(--green) !important; border-color: var(--green-dim) !important; }
+
+  @media (max-width: 640px) {
+    .op-grid { grid-template-columns: 1fr; }
+    .op-modal { max-height: 96vh; border-radius: 14px; }
+    .op-modal-key { min-width: 80px; }
+  }
+
+  /* ══════════════════════════════════════════════
      MOBILE CPF + FOOTER FIXES
   ══════════════════════════════════════════════ */
 
@@ -2096,6 +2352,10 @@
     <button class="tab-btn" onclick="switchTab('ip', this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
       <span>Consultar IP</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('osintplus', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/></svg>
+      <span>OSINT Plus</span>
     </button>
   </nav>
 
@@ -3335,6 +3595,100 @@
 
   </div>
   <!-- FIM TAB IP -->
+
+  <!-- TAB OSINT PLUS -->
+  <div class="tab-panel" id="panel-osintplus">
+
+    <!-- Drop Zone -->
+    <div class="input-section">
+      <div class="section-label">OSINT Plus — Consulta em Base JSON</div>
+
+      <div class="op-dropzone" id="opDropzone">
+        <input type="file" id="opFileInput" accept=".json,.jsonl,.txt" />
+        <div class="op-dropzone-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <div class="op-dropzone-title">Arraste seu arquivo aqui ou clique para selecionar</div>
+        <div class="op-dropzone-sub">
+          Suporta <strong>.json</strong> (array ou objeto) e <strong>.jsonl</strong> (um JSON por linha)<br>
+          Qualquer estrutura de campos é detectada automaticamente
+        </div>
+      </div>
+
+      <div class="op-file-bar" id="opFileBar">
+        <div class="op-file-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <div>
+          <div class="op-file-name" id="opFileName">—</div>
+          <div class="op-file-meta" id="opFileMeta">—</div>
+        </div>
+        <button class="op-file-clear" onclick="opClearFile()">✕ Remover</button>
+      </div>
+    </div>
+
+    <!-- Painel de busca (oculto até ter dados) -->
+    <div id="opSearchPanel" style="display:none">
+
+      <div class="op-search-bar">
+        <input
+          class="op-search-input"
+          id="opSearchInput"
+          type="text"
+          placeholder="Buscar por qualquer campo — nome, telefone, e-mail, ID..."
+          oninput="opSearch()"
+        />
+        <div class="op-search-count" id="opSearchCount"></div>
+      </div>
+
+      <div class="op-filter-row" id="opFilterRow"></div>
+
+      <div class="op-results-header">
+        <div class="op-results-title">Registros</div>
+        <div class="op-results-actions">
+          <button class="btn btn-secondary" onclick="opExportCSV()" style="font-size:11px;padding:7px 13px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar CSV
+          </button>
+          <button class="btn btn-secondary" onclick="opExportJSON()" style="font-size:11px;padding:7px 13px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar JSON
+          </button>
+        </div>
+      </div>
+
+      <div class="op-grid" id="opGrid"></div>
+      <div class="op-empty" id="opEmpty" style="display:none">
+        <div class="op-empty-icon">🔍</div>
+        Nenhum registro encontrado para "<span id="opEmptyTerm"></span>"
+      </div>
+      <div class="op-pagination" id="opPagination"></div>
+    </div>
+
+  </div>
+  <!-- FIM TAB OSINT PLUS -->
+
+  <!-- Modal de detalhe -->
+  <div class="op-modal-overlay" id="opModalOverlay" onclick="opModalClickOut(event)">
+    <div class="op-modal" id="opModal">
+      <div class="op-modal-head">
+        <div class="op-modal-avatar" id="opModalAvatar">?</div>
+        <div>
+          <div class="op-modal-name" id="opModalName">—</div>
+          <div class="op-modal-sub" id="opModalSub">—</div>
+        </div>
+        <button class="op-modal-close" onclick="opCloseModal()">✕</button>
+      </div>
+      <div class="op-modal-body" id="opModalBody"></div>
+      <div class="op-modal-footer">
+        <button class="btn btn-secondary" id="opModalCopyBtn" onclick="opModalCopy()" style="font-size:12px;padding:8px 14px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          Copiar Registro
+        </button>
+        <button class="btn btn-secondary" onclick="opCloseModal()" style="font-size:12px;padding:8px 14px">Fechar</button>
+      </div>
+    </div>
+  </div>
 
   </div>
 </div>
@@ -7380,6 +7734,348 @@ function ipRenderHistorico() {
 function ipCarregarHistorico(addr) {
   document.getElementById('ipInput').value = addr;
   ipConsultar();
+}
+
+/* ════════════════════════════════
+   OSINT PLUS — Upload & Search JSON
+════════════════════════════════ */
+let opAllRecords   = [];   // todos os registros do arquivo
+let opFiltered     = [];   // resultado da busca atual
+let opFields       = [];   // campos detectados
+let opActiveFields = [];   // campos ativos no filtro
+let opCurrentRecord = null;// registro aberto no modal
+let opPage         = 1;
+const OP_PER_PAGE  = 24;
+
+/* ── Drag & Drop ── */
+(function(){
+  const dz = document.getElementById('opDropzone');
+  if (!dz) return;
+  dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('dragover'); });
+  dz.addEventListener('dragleave', ()  => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f) opLoadFile(f);
+  });
+  document.getElementById('opFileInput').addEventListener('change', e => {
+    if (e.target.files[0]) opLoadFile(e.target.files[0]);
+  });
+})();
+
+function opLoadFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const text = e.target.result;
+      let records = [];
+
+      /* Tenta JSON array / objeto */
+      try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) records = parsed;
+        else if (typeof parsed === 'object' && parsed !== null) records = [parsed];
+      } catch(_) {
+        /* Tenta JSONL — um objeto por linha */
+        records = text.split('\n')
+          .map(l => l.trim()).filter(Boolean)
+          .map(l => { try { return JSON.parse(l); } catch(_){ return null; } })
+          .filter(Boolean);
+      }
+
+      if (!records.length) throw new Error('Nenhum registro válido encontrado.');
+
+      opAllRecords   = records;
+      opFiltered     = records;
+      opPage         = 1;
+
+      /* Detectar campos presentes */
+      const fieldSet = new Set();
+      records.slice(0, 200).forEach(r => Object.keys(r).forEach(k => fieldSet.add(k)));
+      opFields       = [...fieldSet];
+      opActiveFields = [...opFields]; // todos ativos por padrão
+
+      /* UI */
+      document.getElementById('opFileName').textContent = file.name;
+      document.getElementById('opFileMeta').textContent =
+        `${records.length.toLocaleString('pt-BR')} registros · ${opFields.length} campos · ${(file.size/1024).toFixed(1)} KB`;
+      document.getElementById('opFileBar').classList.add('visible');
+      document.getElementById('opDropzone').style.display = 'none';
+      document.getElementById('opSearchPanel').style.display = 'block';
+      document.getElementById('opSearchInput').value = '';
+      document.getElementById('opSearchInput').placeholder =
+        `Buscar em ${records.length.toLocaleString('pt-BR')} registros — nome, telefone, e-mail, ID...`;
+
+      opBuildFilterChips();
+      opRender();
+
+    } catch(err) {
+      alert('Erro ao ler o arquivo: ' + err.message);
+    }
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function opClearFile() {
+  opAllRecords = []; opFiltered = []; opFields = []; opActiveFields = [];
+  opPage = 1;
+  document.getElementById('opFileBar').classList.remove('visible');
+  document.getElementById('opDropzone').style.display = '';
+  document.getElementById('opSearchPanel').style.display = 'none';
+  document.getElementById('opFileInput').value = '';
+}
+
+/* ── Filtros de campo ── */
+function opBuildFilterChips() {
+  const row = document.getElementById('opFilterRow');
+  /* Campos mais úteis aparecem primeiro */
+  const priority = ['nick','name','firstName','lastName','phone','email','adapterUserId','ref'];
+  const sorted = [
+    ...priority.filter(f => opFields.includes(f)),
+    ...opFields.filter(f => !priority.includes(f))
+  ];
+
+  row.innerHTML = `
+    <div class="op-filter-chip active" onclick="opToggleAllFields(this)">
+      <span class="op-fc-dot"></span> Todos os campos
+    </div>
+  ` + sorted.map(f => `
+    <div class="op-filter-chip active" data-field="${_escO(f)}" onclick="opToggleField(this,'${_escO(f)}')">
+      <span class="op-fc-dot"></span> ${_escO(f)}
+    </div>
+  `).join('');
+}
+
+function opToggleField(el, field) {
+  el.classList.toggle('active');
+  if (el.classList.contains('active')) {
+    if (!opActiveFields.includes(field)) opActiveFields.push(field);
+  } else {
+    opActiveFields = opActiveFields.filter(f => f !== field);
+  }
+  opPage = 1;
+  opSearch();
+}
+
+function opToggleAllFields(el) {
+  const allActive = opActiveFields.length === opFields.length;
+  if (allActive) {
+    opActiveFields = [];
+    document.querySelectorAll('#opFilterRow .op-filter-chip[data-field]').forEach(c => c.classList.remove('active'));
+    el.classList.remove('active');
+  } else {
+    opActiveFields = [...opFields];
+    document.querySelectorAll('#opFilterRow .op-filter-chip').forEach(c => c.classList.add('active'));
+  }
+  opPage = 1;
+  opSearch();
+}
+
+/* ── Busca ── */
+function opSearch() {
+  const term = (document.getElementById('opSearchInput').value || '').toLowerCase().trim();
+  const fields = opActiveFields.length ? opActiveFields : opFields;
+
+  if (!term) {
+    opFiltered = opAllRecords;
+  } else {
+    opFiltered = opAllRecords.filter(rec =>
+      fields.some(f => {
+        const v = rec[f];
+        return v !== null && v !== undefined && String(v).toLowerCase().includes(term);
+      })
+    );
+  }
+
+  opPage = 1;
+  opRender();
+}
+
+/* ── Renderização ── */
+function opRender() {
+  const total   = opFiltered.length;
+  const pages   = Math.ceil(total / OP_PER_PAGE);
+  const start   = (opPage - 1) * OP_PER_PAGE;
+  const slice   = opFiltered.slice(start, start + OP_PER_PAGE);
+  const term    = (document.getElementById('opSearchInput').value || '').toLowerCase().trim();
+
+  /* Contador */
+  document.getElementById('opSearchCount').innerHTML = term
+    ? `<strong>${total.toLocaleString('pt-BR')}</strong> de ${opAllRecords.length.toLocaleString('pt-BR')} registros`
+    : `<strong>${total.toLocaleString('pt-BR')}</strong> registros`;
+
+  /* Grid */
+  const grid  = document.getElementById('opGrid');
+  const empty = document.getElementById('opEmpty');
+
+  if (!slice.length) {
+    grid.innerHTML  = '';
+    empty.style.display = 'block';
+    document.getElementById('opEmptyTerm').textContent = term;
+    document.getElementById('opPagination').innerHTML = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  /* Campos de prévia nos cards */
+  const previewFields = ['nick','name','firstName','lastName','phone','email',
+    'adapterUserId','ref','customerId'].filter(f => opFields.includes(f));
+
+  grid.innerHTML = slice.map((rec, idx) => {
+    const realIdx = start + idx;
+    const name  = rec.name || rec.nick || rec.firstName || rec.login || rec.username || Object.values(rec).find(v => typeof v === 'string' && v.trim()) || '—';
+    const initial = (String(name).replace(/[^a-zA-ZА-яёЁ]/g,'')[0] || '?').toUpperCase();
+    const subText = rec.adapterUserId ? `ID: ${rec.adapterUserId}` : (rec.id ? `ID: ${rec.id}` : '');
+    const unsub   = rec.unsubscribed;
+
+    const rows = previewFields.slice(0, 5).map(f => {
+      const v = rec[f];
+      if (!v && v !== 0) return '';
+      const cls = f === 'phone' || f === 'email' ? 'green' : f === 'adapterUserId' || f === 'customerId' ? 'accent' : '';
+      return `<div class="op-card-row">
+        <span class="op-card-key">${_escO(f)}</span>
+        <span class="op-card-val ${cls}">${_escO(String(v))}</span>
+      </div>`;
+    }).join('');
+
+    return `<div class="op-card" onclick="opOpenModal(${realIdx})">
+      <div class="op-card-head">
+        <div class="op-card-avatar">${_escO(initial)}</div>
+        <div style="flex:1;min-width:0">
+          <div class="op-card-name">${_escO(String(name).slice(0,40))}</div>
+          <div class="op-card-id">${_escO(subText)}</div>
+        </div>
+        ${unsub !== undefined ? `<span class="op-card-unsub ${_escO(String(unsub))}">${unsub === 'y' ? 'Unsub' : 'Ativo'}</span>` : ''}
+      </div>
+      <div class="op-card-body">${rows || '<span style="font-family:var(--mono);font-size:10px;color:var(--muted)">sem campos de prévia</span>'}</div>
+    </div>`;
+  }).join('');
+
+  /* Paginação */
+  opRenderPagination(pages);
+}
+
+function opRenderPagination(pages) {
+  const pag = document.getElementById('opPagination');
+  if (pages <= 1) { pag.innerHTML = ''; return; }
+
+  let html = `<button class="op-page-btn" onclick="opGoPage(${opPage-1})" ${opPage===1?'disabled':''}>‹</button>`;
+
+  const range = [];
+  for (let i = 1; i <= pages; i++) {
+    if (i === 1 || i === pages || (i >= opPage-2 && i <= opPage+2)) range.push(i);
+    else if (range[range.length-1] !== '…') range.push('…');
+  }
+  range.forEach(p => {
+    if (p === '…') html += `<span class="op-page-info">…</span>`;
+    else html += `<button class="op-page-btn ${p===opPage?'active':''}" onclick="opGoPage(${p})">${p}</button>`;
+  });
+
+  html += `<button class="op-page-btn" onclick="opGoPage(${opPage+1})" ${opPage===pages?'disabled':''}>›</button>`;
+  html += `<span class="op-page-info">${opPage}/${pages}</span>`;
+  pag.innerHTML = html;
+}
+
+function opGoPage(p) {
+  const pages = Math.ceil(opFiltered.length / OP_PER_PAGE);
+  if (p < 1 || p > pages) return;
+  opPage = p;
+  opRender();
+  document.getElementById('panel-osintplus').scrollTop = 0;
+}
+
+/* ── Modal de detalhe ── */
+function opOpenModal(idx) {
+  const rec = opFiltered[idx];
+  if (!rec) return;
+  opCurrentRecord = rec;
+
+  const name = rec.name || rec.nick || rec.firstName || rec.login || rec.username || '—';
+  const initial = (String(name).replace(/[^a-zA-ZА-яёЁ]/g,'')[0] || '?').toUpperCase();
+
+  document.getElementById('opModalAvatar').textContent = initial;
+  document.getElementById('opModalName').textContent   = String(name).slice(0, 60);
+  document.getElementById('opModalSub').textContent    = rec.adapterUserId
+    ? `Telegram ID: ${rec.adapterUserId}` : (rec.id ? `ID: ${rec.id}` : '');
+
+  /* Cores por campo */
+  const colorMap = {
+    phone: 'green', email: 'green', adapterUserId: 'cyan',
+    customerId: 'accent', unsubscribed: rec.unsubscribed === 'y' ? 'red' : 'green',
+    spider_created_at: 'muted', spider_last_message_at: 'muted',
+    nick_userid_md5: 'muted',
+  };
+
+  const tsFields = ['spider_created_at','spider_last_message_at'];
+
+  document.getElementById('opModalBody').innerHTML = Object.entries(rec).map(([k, v]) => {
+    if (v === null || v === undefined || v === '') return '';
+    let display = String(v);
+    if (tsFields.includes(k) && typeof v === 'number' && v > 1000000000) {
+      display = new Date(v * 1000).toLocaleString('pt-BR');
+    }
+    const cls = colorMap[k] || '';
+    return `<div class="op-modal-field">
+      <span class="op-modal-key">${_escO(k)}</span>
+      <span class="op-modal-val ${cls}">${_escO(display)}</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('opModalOverlay').classList.add('open');
+}
+
+function opCloseModal() {
+  document.getElementById('opModalOverlay').classList.remove('open');
+  opCurrentRecord = null;
+}
+
+function opModalClickOut(e) {
+  if (e.target === document.getElementById('opModalOverlay')) opCloseModal();
+}
+
+function opModalCopy() {
+  if (!opCurrentRecord) return;
+  const text = Object.entries(opCurrentRecord)
+    .filter(([,v]) => v !== null && v !== undefined && v !== '')
+    .map(([k,v]) => `${k}: ${v}`)
+    .join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('opModalCopyBtn');
+    btn.classList.add('op-copy-copied');
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px"><path d="M5 13l4 4L19 7"/></svg> Copiado!`;
+    setTimeout(() => {
+      btn.classList.remove('op-copy-copied');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> Copiar Registro`;
+    }, 2200);
+  });
+}
+
+/* ── Exportar ── */
+function opExportCSV() {
+  if (!opFiltered.length) return;
+  const keys = opFields;
+  const rows = [keys.join(',')];
+  opFiltered.forEach(rec => {
+    rows.push(keys.map(k => {
+      const v = rec[k] ?? '';
+      const s = String(v).replace(/"/g, '""');
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
+    }).join(','));
+  });
+  opDownload('osint-plus-export.csv', rows.join('\n'), 'text/csv');
+}
+
+function opExportJSON() {
+  if (!opFiltered.length) return;
+  opDownload('osint-plus-export.json', JSON.stringify(opFiltered, null, 2), 'application/json');
+}
+
+function opDownload(filename, content, mime) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type: mime }));
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 const OSINT_PLATFORMS = [
