@@ -7513,7 +7513,7 @@ let _opFileIdSeq    = 0;    // id sequencial para cada arquivo
 let _opProcessing   = false;// true enquanto processa a fila
 
 const OP_PER_PAGE    = 24;
-const OP_MAX_RECORDS = 20_000_000; // 20 milhões de registros em RAM
+const OP_MAX_RECORDS = 15_000_000; // 15 milhões de registros em RAM
 const OP_CHUNK       = 32 * 1024 * 1024; // 32 MB por chunk
 
 /* ── Código do Worker como Blob (sem arquivo externo) ── */
@@ -7668,7 +7668,7 @@ function _opMergeAndShow() {
     : (totalSize/1024/1024).toFixed(1) + ' MB';
 
   const totalLabel = anyCapped
-    ? `${totalRecs.toLocaleString('pt-BR')} de ${opTotalInFile.toLocaleString('pt-BR')} registros (cap 20M)`
+    ? `${totalRecs.toLocaleString('pt-BR')} de ${opTotalInFile.toLocaleString('pt-BR')} registros (cap 15M)`
     : `${totalRecs.toLocaleString('pt-BR')} registros`;
 
   document.getElementById('opFileName').textContent =
@@ -8314,7 +8314,7 @@ async function osintUserConsultar() {
      5. CSV:                   col1,col2\nval1,val2
    Roda fora da thread principal — UI nunca trava.
 ════════════════════════════════════════════════ */
-const MAX_RECORDS = 20000000;
+const MAX_RECORDS = 15000000;
 let records  = [];
 let fieldSet = new Set();
 let total    = 0;
