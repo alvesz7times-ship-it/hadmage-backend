@@ -1853,6 +1853,26 @@
   }
   .op-file-clear:hover { border-color: var(--red); color: var(--red); }
 
+  /* Lista de múltiplos arquivos */
+  .op-file-list-item {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; font-family: var(--mono);
+    font-size: 11px; animation: slideIn 0.2s ease both;
+  }
+  .op-file-list-item.done  { border-color: rgba(0,229,160,0.25); }
+  .op-file-list-item.error { border-color: rgba(255,77,77,0.3); }
+  .op-file-list-item.loading { border-color: rgba(245,158,11,0.3); }
+  .op-fli-name { flex:1; color: var(--text); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px; }
+  .op-fli-meta { color: var(--muted); font-size:10px; white-space:nowrap; }
+  .op-fli-status { font-size:10px; white-space:nowrap; }
+  .op-fli-status.done    { color: var(--green); }
+  .op-fli-status.error   { color: var(--red); }
+  .op-fli-status.loading { color: var(--yellow); }
+  .op-fli-status.waiting { color: var(--muted); }
+  .op-fli-remove { background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; padding:0 2px; line-height:1; transition:color 0.15s; }
+  .op-fli-remove:hover { color:var(--red); }
+
   /* Barra de busca */
   .op-search-bar {
     display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
@@ -2997,26 +3017,34 @@
       <div class="section-label">OSINT Plus — Consulta em Base JSON</div>
 
       <div class="op-dropzone" id="opDropzone">
-        <input type="file" id="opFileInput" accept=".json,.jsonl,.txt,.csv" />
+        <input type="file" id="opFileInput" accept=".json,.jsonl,.txt,.csv" multiple />
         <div class="op-dropzone-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         </div>
-        <div class="op-dropzone-title">Arraste seu arquivo aqui ou clique para selecionar</div>
+        <div class="op-dropzone-title">Arraste arquivos aqui ou clique para selecionar</div>
         <div class="op-dropzone-sub">
-          Suporta <strong>.json</strong> (array ou objeto) e <strong>.jsonl</strong> (um JSON por linha) e <strong>.csv</strong><br>
+          Suporta <strong>.json</strong>, <strong>.jsonl</strong> e <strong>.csv</strong> — vários arquivos de uma vez<br>
           Qualquer estrutura de campos é detectada automaticamente
         </div>
       </div>
+
+      <!-- Lista de arquivos carregados -->
+      <div id="opFileList" style="display:none; margin-top:12px; flex-direction:column; gap:6px;"></div>
 
       <div class="op-file-bar" id="opFileBar">
         <div class="op-file-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         </div>
-        <div>
+        <div style="flex:1">
           <div class="op-file-name" id="opFileName">—</div>
           <div class="op-file-meta" id="opFileMeta">—</div>
         </div>
-        <button class="op-file-clear" onclick="opClearFile()">✕ Remover</button>
+        <label style="display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all 0.2s;white-space:nowrap" onmouseover="this.style.borderColor='var(--green-dim)';this.style.color='var(--text)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          + Adicionar
+          <input type="file" id="opFileInputExtra" accept=".json,.jsonl,.txt,.csv" multiple style="display:none" onchange="opHandleExtraFiles(this.files)" />
+        </label>
+        <button class="op-file-clear" onclick="opClearFile()">✕ Remover tudo</button>
       </div>
     </div>
 
@@ -7456,6 +7484,11 @@ let opTotalInFile   = 0;    // total real do arquivo (pode > OP_MAX_RECORDS)
 let _opSearchTimer  = null; // debounce da busca
 let _opWorker       = null; // Web Worker ativo
 
+/* ── Multi-arquivo ── */
+let _opFileQueue    = [];   // [{file, id, status, records, fields, total, capped}]
+let _opFileIdSeq    = 0;    // id sequencial para cada arquivo
+let _opProcessing   = false;// true enquanto processa a fila
+
 const OP_PER_PAGE    = 24;
 const OP_MAX_RECORDS = 2_000_000; // 2 milhões de registros em RAM
 const OP_CHUNK       = 32 * 1024 * 1024; // 32 MB por chunk
@@ -7475,121 +7508,241 @@ function _opMakeWorker() {
   dz.addEventListener('dragleave', ()  => dz.classList.remove('dragover'));
   dz.addEventListener('drop', e => {
     e.preventDefault(); dz.classList.remove('dragover');
-    const f = e.dataTransfer.files[0];
-    if (f) opLoadFile(f);
+    if (e.dataTransfer.files.length) opEnqueueFiles(e.dataTransfer.files);
   });
   document.getElementById('opFileInput').addEventListener('change', e => {
-    if (e.target.files[0]) opLoadFile(e.target.files[0]);
+    if (e.target.files.length) opEnqueueFiles(e.target.files);
+    e.target.value = '';
   });
 })();
 
-function opLoadFile(file) {
-  opAllRecords = []; opFiltered = []; opFields = []; opActiveFields = [];
-  opPage = 1; opTotalInFile = 0;
-  if (_opWorker) { _opWorker.terminate(); _opWorker = null; }
-  opShowProgress(file.name, file.size);
-  opStreamRead(file);
+/* ── Adicionar mais arquivos (botão "+ Adicionar") ── */
+function opHandleExtraFiles(fileList) {
+  if (fileList && fileList.length) opEnqueueFiles(fileList);
+  const extra = document.getElementById('opFileInputExtra');
+  if (extra) extra.value = '';
 }
 
-/* ─────────────────────────────────────────────
-   Leitura em chunks via Web Worker.
-   A thread principal só lê o Blob e envia
-   ArrayBuffers para o Worker — zero bloqueio.
-───────────────────────────────────────────── */
-async function opStreamRead(file) {
-  const total  = file.size;
-  let   offset = 0;
+/* ── Enfileira arquivos e inicia processamento ── */
+function opEnqueueFiles(fileList) {
+  // Esconde a dropzone ao enfileirar o primeiro arquivo
+  const dz = document.getElementById('opDropzone');
+  if (dz) dz.style.display = 'none';
 
-  _opWorker = _opMakeWorker();
-  _opWorker.postMessage({ type: 'reset' });
-  const thisWorker = _opWorker; // captura referência para detectar cancelamento
+  for (const file of fileList) {
+    const id = ++_opFileIdSeq;
+    _opFileQueue.push({ file, id, status: 'waiting', records: [], fields: [], total: 0, capped: false });
+  }
+  _opRenderFileList();
+  if (!_opProcessing) _opProcessNext();
+}
 
-  _opWorker.onmessage = function(e) {
-    /* Se o worker foi cancelado (opClearFile), ignora mensagens tardias */
-    if (thisWorker !== _opWorker && _opWorker !== null) return;
-    if (thisWorker !== _opWorker && _opWorker === null) return;
-    const msg = e.data;
-    if (msg.type === 'progress') {
-      opUpdateProgress(msg.pct, msg.count, msg.capped);
-    } else if (msg.type === 'done') {
-      _opWorker.terminate(); _opWorker = null;
-      opFinishLoad(msg.records, msg.fields, file, msg.capped, msg.total);
-    }
-  };
-
-  _opWorker.onerror = function(err) {
-    if (thisWorker !== _opWorker) return; // já cancelado
-    _opWorker.terminate(); _opWorker = null;
-    opHideProgress();
-    alert('Erro no worker: ' + err.message);
-  };
-
+/* ── Processa o próximo arquivo da fila ── */
+async function _opProcessNext() {
+  const entry = _opFileQueue.find(e => e.status === 'waiting');
+  if (!entry) {
+    _opProcessing = false;
+    _opMergeAndShow();
+    return;
+  }
+  _opProcessing = true;
+  entry.status = 'loading';
+  _opRenderFileList();
   try {
-    while (offset < total) {
-      const end    = Math.min(offset + OP_CHUNK, total);
-      const buffer = await file.slice(offset, end).arrayBuffer();
-      /* Transferência zero-copy: o buffer vai para o worker sem copiar */
-      _opWorker.postMessage({ type: 'chunk', buffer, fileTotal: total, offset }, [buffer]);
-      offset = end;
-      /* Yield mínimo para manter a UI responsiva entre chunks */
-      await new Promise(r => setTimeout(r, 0));
-    }
-    _opWorker.postMessage({ type: 'finish' });
+    const result = await _opStreamReadSingle(entry.file);
+    entry.status  = result.records.length ? 'done' : 'error';
+    entry.records = result.records;
+    entry.fields  = result.fields;
+    entry.total   = result.total;
+    entry.capped  = result.capped;
+    entry.error   = result.records.length ? null : 'Nenhum registro encontrado';
   } catch(err) {
-    if (_opWorker) { _opWorker.terminate(); _opWorker = null; }
-    opHideProgress();
-    alert('Erro ao ler o arquivo: ' + err.message);
+    entry.status = 'error';
+    entry.error  = err.message;
+  }
+  _opRenderFileList();
+  _opProcessNext();
+}
+
+/* ── Lê um arquivo único com Worker, retorna Promise ── */
+function _opStreamReadSingle(file) {
+  return new Promise((resolve, reject) => {
+    const worker = _opMakeWorker();
+    worker.postMessage({ type: 'reset' });
+
+    worker.onmessage = function(e) {
+      const msg = e.data;
+      if (msg.type === 'progress') {
+        // atualiza o item da lista com progresso
+        const entry = _opFileQueue.find(en => en.status === 'loading');
+        if (entry) { entry._pct = msg.pct; entry._count = msg.count; _opRenderFileList(); }
+      } else if (msg.type === 'done') {
+        worker.terminate();
+        resolve({ records: msg.records, fields: msg.fields, total: msg.total, capped: msg.capped });
+      }
+    };
+    worker.onerror = function(err) {
+      worker.terminate();
+      reject(new Error(err.message || 'Erro no worker'));
+    };
+
+    (async () => {
+      const total = file.size;
+      let offset  = 0;
+      try {
+        while (offset < total) {
+          const end    = Math.min(offset + OP_CHUNK, total);
+          const buffer = await file.slice(offset, end).arrayBuffer();
+          worker.postMessage({ type: 'chunk', buffer, fileTotal: total, offset }, [buffer]);
+          offset = end;
+          await new Promise(r => setTimeout(r, 0));
+        }
+        worker.postMessage({ type: 'finish' });
+      } catch(err) {
+        worker.terminate();
+        reject(err);
+      }
+    })();
+  });
+}
+
+/* ── Merge de todos os arquivos prontos → opAllRecords ── */
+function _opMergeAndShow() {
+  const doneEntries = _opFileQueue.filter(e => e.status === 'done');
+  if (!doneEntries.length) return;
+
+  const merged = [];
+  const fieldsMerged = new Set();
+  let totalMerged = 0;
+  let anyCapped = false;
+
+  for (const entry of doneEntries) {
+    for (const rec of entry.records) {
+      if (merged.length >= OP_MAX_RECORDS) { anyCapped = true; break; }
+      merged.push(rec);
+    }
+    totalMerged += entry.total;
+    if (entry.capped) anyCapped = true;
+    entry.fields.forEach(f => fieldsMerged.add(f));
+  }
+
+  opTotalInFile  = totalMerged;
+  opAllRecords   = merged;
+  opFiltered     = merged;
+  opPage         = 1;
+  opFields       = fieldsMerged.size ? [...fieldsMerged] : (() => {
+    const s = new Set();
+    merged.slice(0, 200).forEach(r => Object.keys(r).forEach(k => s.add(k)));
+    return [...s];
+  })();
+  opActiveFields = [...opFields];
+
+  const totalFiles = doneEntries.length;
+  const totalRecs  = merged.length;
+  const totalSize  = doneEntries.reduce((a, e) => a + e.file.size, 0);
+  const sizeStr    = totalSize >= 1024*1024*1024
+    ? (totalSize/1024/1024/1024).toFixed(2) + ' GB'
+    : (totalSize/1024/1024).toFixed(1) + ' MB';
+
+  const totalLabel = anyCapped
+    ? `${totalRecs.toLocaleString('pt-BR')} de ${opTotalInFile.toLocaleString('pt-BR')} registros (cap 2M)`
+    : `${totalRecs.toLocaleString('pt-BR')} registros`;
+
+  document.getElementById('opFileName').textContent =
+    totalFiles === 1 ? doneEntries[0].file.name : `${totalFiles} arquivos carregados`;
+  document.getElementById('opFileMeta').textContent =
+    `${totalLabel} · ${opFields.length} campos · ${sizeStr}`;
+
+  const metaEl = document.getElementById('opFileMeta');
+  if (anyCapped) {
+    metaEl.style.color = 'var(--yellow)';
+    metaEl.title = `Limite de 2M atingido. Total real: ${opTotalInFile.toLocaleString()}.`;
+  } else {
+    metaEl.style.color = '';
+    metaEl.title = '';
+  }
+
+  document.getElementById('opFileBar').classList.add('visible');
+  document.getElementById('opSearchPanel').style.display = 'block';
+  document.getElementById('opSearchInput').value = '';
+  document.getElementById('opSearchInput').placeholder =
+    `Buscar em ${totalRecs.toLocaleString('pt-BR')} registros...`;
+
+  opBuildFilterChips();
+  opRender();
+}
+
+/* ── Renderiza a lista de arquivos com status ── */
+function _opRenderFileList() {
+  const listEl = document.getElementById('opFileList');
+  if (!listEl) return;
+  if (!_opFileQueue.length) { listEl.style.display = 'none'; return; }
+
+  listEl.style.display = 'flex';
+
+  const sizeLabel = sz => sz >= 1024*1024*1024
+    ? (sz/1024/1024/1024).toFixed(2) + ' GB'
+    : (sz/1024/1024).toFixed(1) + ' MB';
+
+  listEl.innerHTML = _opFileQueue.map(entry => {
+    const pct    = entry._pct  != null ? ` ${entry._pct}%` : '';
+    const recs   = entry._count != null ? ` · ${entry._count.toLocaleString('pt-BR')} reg` : '';
+    let statusText, statusClass, icon;
+    switch (entry.status) {
+      case 'loading':
+        statusText = `processando${pct}${recs}`; statusClass = 'loading';
+        icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px" class="spin"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>';
+        break;
+      case 'done':
+        statusText = `${entry.records.length.toLocaleString('pt-BR')} reg · ${sizeLabel(entry.file.size)}`; statusClass = 'done';
+        icon = '✓'; break;
+      case 'error':
+        statusText = entry.error || 'erro'; statusClass = 'error';
+        icon = '✗'; break;
+      default:
+        statusText = sizeLabel(entry.file.size); statusClass = 'waiting';
+        icon = '⏳'; break;
+    }
+    const canRemove = entry.status !== 'loading';
+    return `<div class="op-file-list-item ${entry.status}">
+      <span class="op-fli-status ${statusClass}">${icon}</span>
+      <span class="op-fli-name" title="${_escO(entry.file.name)}">${_escO(entry.file.name)}</span>
+      <span class="op-fli-meta">${_escO(statusText)}</span>
+      ${canRemove ? `<button class="op-fli-remove" onclick="opRemoveFile(${entry.id})" title="Remover">✕</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+/* ── Remove um arquivo individual da lista ── */
+function opRemoveFile(id) {
+  _opFileQueue = _opFileQueue.filter(e => e.id !== id);
+  _opRenderFileList();
+  if (!_opFileQueue.length) {
+    opClearFile();
+  } else {
+    _opMergeAndShow();
   }
 }
 
 /* ── Progress UI ── */
-function opShowProgress(name, size) {
-  const mb = size >= 1024*1024*1024
-    ? (size/1024/1024/1024).toFixed(2) + ' GB'
-    : (size/1024/1024).toFixed(1) + ' MB';
-  document.getElementById('opDropzone').innerHTML = `
-    <div class="op-dropzone-icon" style="background:rgba(0,229,160,0.1);border-color:rgba(0,229,160,0.3)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin">
-        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-      </svg>
-    </div>
-    <div class="op-dropzone-title" id="opProgressTitle">Carregando ${_escO(name)}…</div>
-    <div style="margin:14px auto 0;width:100%;max-width:340px;height:6px;background:var(--border);border-radius:6px;overflow:hidden">
-      <div id="opProgressBar" style="height:100%;width:0%;background:var(--green);border-radius:6px;transition:width 0.3s"></div>
-    </div>
-    <div class="op-dropzone-sub" style="margin-top:10px">
-      <span id="opProgressPct">0%</span> — <span id="opProgressRecs">0 registros lidos</span>
-      <br><strong>${mb}</strong> · parsing em Web Worker, UI não trava
-    </div>
-    <button onclick="opClearFile()" style="margin-top:16px;padding:7px 18px;border-radius:8px;border:1px solid rgba(255,77,77,0.4);background:rgba(255,77,77,0.08);color:#ff6b6b;font-family:var(--mono);font-size:11px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.background='rgba(255,77,77,0.18)'" onmouseout="this.style.background='rgba(255,77,77,0.08)'">
-      ✕ Cancelar
-    </button>`;
-}
-
-function opUpdateProgress(pct, recs, capped) {
-  const b = document.getElementById('opProgressBar');
-  const p = document.getElementById('opProgressPct');
-  const r = document.getElementById('opProgressRecs');
-  const t = document.getElementById('opProgressTitle');
-  if (b) b.style.width = Math.min(pct, 99) + '%';
-  if (p) p.textContent = pct + '%';
-  if (r) r.textContent = recs.toLocaleString('pt-BR') + ' registros' + (capped ? ` (limite ${OP_MAX_RECORDS.toLocaleString('pt-BR')})` : '');
-  if (pct >= 99 && t) t.textContent = 'Finalizando…';
-}
+function opShowProgress(name, size) { /* mantida por compatibilidade, não usada no novo fluxo */ }
+function opUpdateProgress(pct, recs, capped) { /* mantida por compatibilidade */ }
 
 function opHideProgress() {
   const dz = document.getElementById('opDropzone');
+  if (!dz) return;
   dz.innerHTML = `
-    <input type="file" id="opFileInput" accept=".json,.jsonl,.txt,.csv" />
+    <input type="file" id="opFileInput" accept=".json,.jsonl,.txt,.csv" multiple />
     <div class="op-dropzone-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
-    <div class="op-dropzone-title">Arraste seu arquivo aqui ou clique para selecionar</div>
-    <div class="op-dropzone-sub">Suporta <strong>.json</strong>, <strong>.jsonl</strong> e <strong>.csv</strong></div>`;
+    <div class="op-dropzone-title">Arraste arquivos aqui ou clique para selecionar</div>
+    <div class="op-dropzone-sub">Suporta <strong>.json</strong>, <strong>.jsonl</strong> e <strong>.csv</strong> — vários arquivos de uma vez</div>`;
   document.getElementById('opFileInput').addEventListener('change', e => {
-    if (e.target.files[0]) opLoadFile(e.target.files[0]);
+    if (e.target.files.length) opEnqueueFiles(e.target.files);
+    e.target.value = '';
   });
 }
 
-/* ── Finaliza após leitura ── */
+/* ── Finaliza após leitura (mantida para compatibilidade) ── */
 function opFinishLoad(records, fields, file, capped, workerTotal) {
   if (!records.length) {
     opHideProgress();
@@ -7597,64 +7750,33 @@ function opFinishLoad(records, fields, file, capped, workerTotal) {
     if (_dz) {
       const errDiv = document.createElement('div');
       errDiv.style.cssText = 'margin-top:14px;padding:10px 16px;border-radius:8px;border:1px solid rgba(255,77,77,0.35);background:rgba(255,77,77,0.07);color:#ff6b6b;font-family:var(--mono);font-size:11px;line-height:1.6;text-align:center';
-      errDiv.innerHTML = '⚠ Nenhum registro encontrado.<br>Suporta: JSON-array <code>[{…}]</code>, JSONL, objeto-raiz <code>{"data":[…]}</code>, CSV com cabeçalho';
+      errDiv.innerHTML = '&#9888; Nenhum registro encontrado.<br>Suporta: JSON-array, JSONL, CSV com cabeçalho';
       _dz.appendChild(errDiv);
     }
     return;
   }
-
-  opTotalInFile = workerTotal || records.length;
-  opAllRecords  = records;
-  opFiltered    = records;
-  opPage        = 1;
-  opFields      = fields.length ? fields : (() => {
-    const s = new Set();
-    records.slice(0, 200).forEach(r => Object.keys(r).forEach(k => s.add(k)));
-    return [...s];
-  })();
-  opActiveFields = [...opFields];
-
-  const dz = document.getElementById('opDropzone');
-  dz.style.display = 'none';
-
-  const sizeStr = file.size >= 1024*1024*1024
-    ? (file.size/1024/1024/1024).toFixed(2) + ' GB'
-    : (file.size/1024/1024).toFixed(1) + ' MB';
-
-  const totalLabel = capped
-    ? `${records.length.toLocaleString('pt-BR')} de ${opTotalInFile.toLocaleString('pt-BR')} registros (cap 2M)`
-    : `${records.length.toLocaleString('pt-BR')} registros`;
-
-  document.getElementById('opFileName').textContent = file.name;
-  document.getElementById('opFileMeta').textContent =
-    `${totalLabel} · ${opFields.length} campos · ${sizeStr}`;
-  document.getElementById('opFileBar').classList.add('visible');
-  document.getElementById('opSearchPanel').style.display = 'block';
-  document.getElementById('opSearchInput').value = '';
-  document.getElementById('opSearchInput').placeholder =
-    `Buscar em ${records.length.toLocaleString('pt-BR')} registros...`;
-
-  if (capped) {
-    const warn = document.getElementById('opFileMeta');
-    warn.style.color = 'var(--yellow)';
-    warn.title = `Arquivo grande: carregados ${records.length.toLocaleString()} de ${opTotalInFile.toLocaleString()} registros. Limite de 2 milhões por sessão.`;
-  }
-
-  opBuildFilterChips();
-  opRender();
+  // fallback: injeta como entrada única na fila
+  const id = ++_opFileIdSeq;
+  _opFileQueue.push({ file, id, status: 'done', records, fields, total: workerTotal || records.length, capped: capped || false });
+  _opRenderFileList();
+  _opMergeAndShow();
 }
 
 function opClearFile() {
   if (_opWorker) { _opWorker.terminate(); _opWorker = null; }
+  _opFileQueue = []; _opProcessing = false; _opFileIdSeq = 0;
   opAllRecords = []; opFiltered = []; opFields = []; opActiveFields = [];
   opPage = 1; opTotalInFile = 0;
   if (_opSearchTimer) clearTimeout(_opSearchTimer);
   document.getElementById('opFileBar').classList.remove('visible');
   document.getElementById('opSearchPanel').style.display = 'none';
-  /* Restaura a dropzone para o estado inicial (remove spinner/progress) */
+  const listEl = document.getElementById('opFileList');
+  if (listEl) { listEl.innerHTML = ''; listEl.style.display = 'none'; }
   opHideProgress();
   const dz = document.getElementById('opDropzone');
-  dz.style.removeProperty('display');
+  if (dz) dz.style.removeProperty('display');
+}
+
 }
 
 /* ── Filtros de campo ── */
